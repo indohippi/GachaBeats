@@ -24,11 +24,25 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Start Application"
+args = "Push Schema"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Push Schema"
+args = "Start Application"
+
+[[workflows.workflow]]
+name = "Push Schema"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run db:push"
 
 [[workflows.workflow]]
 name = "Start Application"
@@ -44,17 +58,3 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
-
-[[workflows.workflow]]
-name = "Push Schema"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run db:push"

@@ -50,21 +50,51 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Initialize database first
-    const { initializeDatabase } = await import("../db");
-    await initializeDatabase();
-    log("Database initialized successfully");
+    // Initialize database first with enhanced error logging
+    const { initializeDatabase, verifyDatabaseConnection } = await import("../db");
+    try {
+      await verifyDatabaseConnection();
+      log("Database connection verified");
+      await initializeDatabase();
+      log("Database initialized successfully");
+    } catch (dbError) {
+      log(`Database initialization failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+      throw dbError;
+    }
 
     // Register routes after database is ready
-    registerRoutes(app);
+    let wss;
+    try {
+      wss = registerRoutes(app);
+      log("Routes registered successfully");
+    } catch (routesError) {
+      log(`Routes registration failed: ${routesError instanceof Error ? routesError.message : String(routesError)}`);
+      throw routesError;
+    }
+
     const server = createServer(app);
 
-    // Error handling middleware
+    // Set up WebSocket handling with error logging
+    server.on('upgrade', (request, socket, head) => {
+      try {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, request);
+          log('WebSocket connection established');
+        });
+      } catch (wsError) {
+        log(`WebSocket upgrade failed: ${wsError instanceof Error ? wsError.message : String(wsError)}`);
+        socket.destroy();
+      }
+    });
+
+    // Enhanced error handling middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
-      log(`Error: ${message}`);
-      res.status(status).json({ message });
+      const stack = app.get('env') === 'development' ? err.stack : undefined;
+      log(`Error [${status}]: ${message}`);
+      if (stack) log(`Stack trace: ${stack}`);
+      res.status(status).json({ message, stack });
     });
 
     // Setup Vite or static serving
