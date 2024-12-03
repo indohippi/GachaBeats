@@ -3,6 +3,10 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 
+// Constants
+const STARTUP_TIMEOUT = 30000; // 30 seconds
+const GRACEFUL_SHUTDOWN_TIMEOUT = 10000; // 10 seconds
+
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "2-digit",
@@ -14,10 +18,31 @@ function log(message: string) {
   console.log(`${formattedTime} [express] ${message}`);
 }
 
+// Verify required environment variables
+function verifyEnvironment() {
+  const requiredVars = [
+    'DATABASE_URL',
+    'SESSION_SECRET',
+    'PGHOST',
+    'PGPORT',
+    'PGUSER',
+    'PGPASSWORD',
+    'PGDATABASE'
+  ];
+
+  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  if (missingVars.length > 0) {
+    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  }
+
+  log('Environment variables verified');
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -48,81 +73,137 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
-  try {
-    // Initialize database first with enhanced error logging
-    const { initializeDatabase, verifyDatabaseConnection } = await import("../db");
+// Startup sequence with timeout
+async function startServer() {
+  const startupPromise = new Promise(async (resolve, reject) => {
     try {
-      await verifyDatabaseConnection();
-      log("Database connection verified");
-      await initializeDatabase();
-      log("Database initialized successfully");
-    } catch (dbError) {
-      log(`Database initialization failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
-      throw dbError;
-    }
+      log('Starting server initialization...');
+      
+      // Verify environment variables
+      verifyEnvironment();
 
-    // Register routes after database is ready
-    let wss;
-    try {
-      wss = registerRoutes(app);
-      log("Routes registered successfully");
-    } catch (routesError) {
-      log(`Routes registration failed: ${routesError instanceof Error ? routesError.message : String(routesError)}`);
-      throw routesError;
-    }
-
-    const server = createServer(app);
-
-    // Set up WebSocket handling with error logging
-    server.on('upgrade', (request, socket, head) => {
+      // Initialize database
+      const { initializeDatabase, verifyDatabaseConnection } = await import("../db");
       try {
-        wss.handleUpgrade(request, socket, head, (ws) => {
-          wss.emit('connection', ws, request);
-          log('WebSocket connection established');
-        });
-      } catch (wsError) {
-        log(`WebSocket upgrade failed: ${wsError instanceof Error ? wsError.message : String(wsError)}`);
-        socket.destroy();
+        await verifyDatabaseConnection();
+        log('Database connection verified');
+        await initializeDatabase();
+        log('Database initialized successfully');
+      } catch (dbError) {
+        log(`Database initialization failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+        throw dbError;
       }
-    });
 
-    // Enhanced error handling middleware
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
-      const stack = app.get('env') === 'development' ? err.stack : undefined;
-      log(`Error [${status}]: ${message}`);
-      if (stack) log(`Stack trace: ${stack}`);
-      res.status(status).json({ message, stack });
-    });
+      // Register routes and initialize WebSocket server
+      let wss;
+      try {
+        wss = registerRoutes(app);
+        log('Routes registered successfully');
+      } catch (routesError) {
+        log(`Routes registration failed: ${routesError instanceof Error ? routesError.message : String(routesError)}`);
+        throw routesError;
+      }
 
-    // Setup Vite or static serving
-    if (app.get("env") === "development") {
-      await setupVite(app, server);
-    } else {
-      serveStatic(app);
-    }
+      const server = createServer(app);
 
-    // Start server
-    const PORT = 5000;
-    server.listen(PORT, "0.0.0.0", () => {
-      log(`Server running on port ${PORT}`);
-    });
-
-    // Graceful shutdown
-    const shutdown = async () => {
-      log("Shutting down gracefully...");
-      server.close(() => {
-        log("Server closed");
-        process.exit(0);
+      // Set up WebSocket handling with error logging
+      server.on('upgrade', (request, socket, head) => {
+        try {
+          wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+            log('WebSocket connection established');
+          });
+        } catch (wsError) {
+          log(`WebSocket upgrade failed: ${wsError instanceof Error ? wsError.message : String(wsError)}`);
+          socket.destroy();
+        }
       });
-    };
 
-    process.on("SIGTERM", shutdown);
-    process.on("SIGINT", shutdown);
+      // Enhanced error handling middleware
+      app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+        const status = err.status || err.statusCode || 500;
+        const message = err.message || "Internal Server Error";
+        const stack = app.get('env') === 'development' ? err.stack : undefined;
+        log(`Error [${status}]: ${message}`);
+        if (stack) log(`Stack trace: ${stack}`);
+        res.status(status).json({ message, stack });
+      });
+
+      // Setup Vite or static serving
+      if (app.get("env") === "development") {
+        await setupVite(app, server);
+        log('Vite development server configured');
+      } else {
+        serveStatic(app);
+        log('Static file serving configured');
+      }
+
+      // Start server with proper error handling
+      const PORT = process.env.PORT || 5000;
+      try {
+        server.listen(PORT, "0.0.0.0", () => {
+          log(`Server running at http://0.0.0.0:${PORT}`);
+          resolve(server);
+        });
+
+        server.on('error', (error: NodeJS.ErrnoException) => {
+          if (error.code === 'EADDRINUSE') {
+            log(`Port ${PORT} is already in use`);
+          }
+          reject(error);
+        });
+      } catch (listenError) {
+        log(`Failed to start server: ${listenError instanceof Error ? listenError.message : String(listenError)}`);
+        throw listenError;
+      }
+
+      // Graceful shutdown handler
+      const shutdown = async (signal: string) => {
+        log(`Received ${signal}, starting graceful shutdown...`);
+        
+        const shutdownPromise = new Promise<void>((resolveShutdown) => {
+          server.close(() => {
+            log('Server closed');
+            resolveShutdown();
+          });
+        });
+
+        try {
+          await Promise.race([
+            shutdownPromise,
+            new Promise((_, rejectShutdown) => 
+              setTimeout(() => rejectShutdown(new Error('Shutdown timeout')), GRACEFUL_SHUTDOWN_TIMEOUT)
+            )
+          ]);
+          process.exit(0);
+        } catch (error) {
+          log(`Forced shutdown after timeout: ${error instanceof Error ? error.message : String(error)}`);
+          process.exit(1);
+        }
+      };
+
+      process.on("SIGTERM", () => shutdown("SIGTERM"));
+      process.on("SIGINT", () => shutdown("SIGINT"));
+
+    } catch (error) {
+      reject(error);
+    }
+  });
+
+  try {
+    await Promise.race([
+      startupPromise,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Server startup timeout')), STARTUP_TIMEOUT)
+      )
+    ]);
   } catch (error) {
-    log(`Fatal error: ${error instanceof Error ? error.message : String(error)}`);
+    log(`Fatal error during startup: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
-})();
+}
+
+startServer().catch(error => {
+  log(`Unhandled error during server startup: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+});
