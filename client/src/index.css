@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+ 
+@layer base {
+  :root {
+    --gba-darkest: #081820;
+    --gba-dark: #346856;
+    --gba-light: #88C070;
+    --gba-lightest: #E0F8D0;
+  }
+
+  * {
+    @apply border-border;
+  }
+ 
+  body {
+    @apply font-sans antialiased bg-[--gba-darkest] text-[--gba-lightest];
+  }
+
+  @font-face {
+    font-family: 'PressStart2P';
+    src: url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  }
+}
+
+@layer components {
+  .gba-pixel-border {
+    @apply border-2 border-[--gba-light] shadow-[2px_2px_0px_0px_var(--gba-dark)];
+  }
+
+  .gba-button {
+    @apply bg-[--gba-dark] text-[--gba-lightest] px-4 py-2 rounded-none
+           hover:bg-[--gba-light] transition-colors gba-pixel-border;
+  }
+
+  .sequencer-grid {
+    @apply grid grid-cols-16 gap-1 bg-[--gba-darkest] p-2 gba-pixel-border;
+  }
+
+  .grid-cell {
+    @apply w-8 h-8 bg-[--gba-dark] hover:bg-[--gba-light] cursor-pointer transition-colors;
+  }
+
+  .grid-cell.active {
+    @apply bg-[--gba-light];
+  }
+}
