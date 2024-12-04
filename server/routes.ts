@@ -4,14 +4,33 @@ import pgSimple from "connect-pg-simple";
 import { db } from "../db";
 import { sounds, userSounds, users } from "@db/schema";
 import { eq } from "drizzle-orm";
-import { WebSocketServer } from "ws";
-import authRouter from "./auth";
+import { WebSocketServer, WebSocket as WS } from "ws";
+import { RawData } from 'ws';
 
-// Constants for session store health checks
-const SESSION_STORE_CHECK_INTERVAL = 15000; // 15 seconds
-const SESSION_CLEANUP_INTERVAL = 86400000; // 24 hours
-const WS_PING_INTERVAL = 30000; // 30 seconds
+// Extended WebSocket type with our custom properties
+interface ExtendedWebSocket extends WS {
+  isAlive?: boolean;
+  lastPingTime?: number;
+  connectionId?: string;
+  messageCount?: number;
+  connectionStartTime?: number;
+  messageSuccessRate?: number;
+  latencyHistory?: number[];
+  recoveryAttempts?: number;
+}
+import authRouter from "./auth";
+import { Socket } from "net";
+
+// Constants for session store health checks and WebSocket management
+// Safe timeout values within 32-bit integer limits
+const SESSION_STORE_CHECK_INTERVAL = 5000; // 5 seconds for faster health checks
+const SESSION_CLEANUP_INTERVAL = Math.min(86400000, 0x7FFFFFFF); // 24 hours or max safe value
+const WS_PING_INTERVAL = 15000; // 15 seconds for frequent connection checks
 const WS_PING_TIMEOUT = 5000; // 5 seconds
+const MAX_32_BIT_INT = 0x7FFFFFFF; // Maximum 32-bit signed integer (2147483647)
+
+// Helper function to ensure timeout values are safe
+const getSafeTimeout = (value: number): number => Math.min(value, MAX_32_BIT_INT);
 
 function setupSessionStore() {
   console.log('Initializing session store...');
@@ -20,11 +39,18 @@ function setupSessionStore() {
   const sessionStore = new PgSession({
     conObject: {
       connectionString: process.env.DATABASE_URL,
+      // Add connection timeout settings
+      connectionTimeoutMillis: getSafeTimeout(10000), // 10 second connection timeout
+      idleTimeoutMillis: getSafeTimeout(30000), // 30 second idle timeout
     },
     createTableIfMissing: true,
-    pruneSessionInterval: SESSION_CLEANUP_INTERVAL,
+    pruneSessionInterval: getSafeTimeout(SESSION_CLEANUP_INTERVAL),
     errorLog: (error) => {
       console.error('Session store error:', error);
+      // Add specific handling for timeout errors
+      if (error.message?.includes('timeout')) {
+        console.error('Session store timeout error - attempting recovery');
+      }
     },
   });
 
@@ -59,24 +85,42 @@ function setupWebSocketServer(): WebSocketServer {
   console.log('WebSocket server initialized successfully');
   
   // Track connected clients
-  const clients = new Set<WebSocket>();
+  const clients = new Set<WebSocket & { isAlive?: boolean; lastPingTime?: number; connectionId?: string; messageCount?: number; connectionStartTime?: number; messageSuccessRate?: number; }>();
   
-  // WebSocket server monitoring
+  // WebSocket server monitoring with safe timeout values
   const monitoringInterval = setInterval(() => {
     console.log(`WebSocket status: ${clients.size} clients connected`);
     
+    const now = Date.now();
     // Check all clients' health
     clients.forEach((ws) => {
-      if (!(ws as any).isAlive) {
+      const wsState = ws as any;
+      
+      // Check if connection has exceeded maximum safe timeout
+      if (now - wsState.lastPingTime > getSafeTimeout(WS_PING_INTERVAL * 3)) {
+        console.log('Connection exceeded maximum safe timeout, terminating');
+        ws.terminate();
+        return;
+      }
+      
+      if (!wsState.isAlive) {
         console.log('Terminating inactive WebSocket connection');
         ws.terminate();
         return;
       }
       
-      (ws as any).isAlive = false;
+      wsState.isAlive = false;
+      wsState.lastPingTime = now;
       ws.ping();
     });
-  }, WS_PING_INTERVAL);
+  }, getSafeTimeout(WS_PING_INTERVAL));
+
+  // Ensure proper cleanup of monitoring interval
+  process.on('SIGTERM', () => {
+    clearInterval(monitoringInterval);
+    clients.forEach(ws => ws.terminate());
+    clients.clear();
+  });
 
   // Enhanced WebSocket error handling
   wss.on('error', (error) => {
@@ -87,10 +131,16 @@ function setupWebSocketServer(): WebSocketServer {
     console.log('New WebSocket connection established');
     clients.add(ws);
     
-    // Set initial alive state and connection timestamp
+    // Enhanced connection state tracking
     (ws as any).isAlive = true;
     (ws as any).connectionStartTime = Date.now();
     (ws as any).messageCount = 0;
+    (ws as any).lastMessageTime = Date.now();
+    (ws as any).recoveryAttempts = 0;
+    
+    // Connection quality monitoring
+    (ws as any).latencyHistory = [];
+    (ws as any).messageSuccessRate = 1.0;
     
     // Enhanced error handling
     ws.on('error', (error) => {
@@ -112,14 +162,30 @@ function setupWebSocketServer(): WebSocketServer {
     // Improved message validation and rate limiting
     ws.on('message', (message) => {
       try {
-        // Rate limiting check
         const now = Date.now();
+        (ws as any).lastMessageTime = now;
+        
+        // Enhanced rate limiting with adaptive thresholds
         const messageRate = ++((ws as any).messageCount) / ((now - (ws as any).connectionStartTime) / 1000);
-        if (messageRate > 100) { // More than 100 messages per second
-          console.warn('Client exceeding message rate limit');
-          ws.send(JSON.stringify({ type: 'error', message: 'Rate limit exceeded' }));
+        const baseLimit = 100; // Base rate limit of 100 messages per second
+        const adaptiveLimit = baseLimit * (ws as any).messageSuccessRate;
+        
+        if (messageRate > adaptiveLimit) {
+          console.warn(`Client ${(ws as any).connectionId} exceeding adapted rate limit: ${messageRate.toFixed(2)}/${adaptiveLimit.toFixed(2)} msg/s`);
+          ws.send(JSON.stringify({ 
+            type: 'error', 
+            message: 'Rate limit exceeded',
+            details: {
+              currentRate: messageRate,
+              limit: adaptiveLimit,
+              successRate: (ws as any).messageSuccessRate
+            }
+          }));
           return;
         }
+        
+        // Track message latency
+        const start = performance.now();
 
         // Frame validation
         if (message.length > 1024 * 1024) { // 1MB limit

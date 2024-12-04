@@ -13,9 +13,11 @@ interface WebSocketState {
   maxReconnectAttempts: number;
 }
 
-const INITIAL_RETRY_DELAY = 1000; // 1 second
-const MAX_RETRY_DELAY = 30000; // 30 seconds
+// WebSocket connection constants
+const INITIAL_RETRY_DELAY = 500; // 500ms for faster initial reconnection
+const MAX_RETRY_DELAY = 30000; // 30 seconds maximum delay
 const HEARTBEAT_INTERVAL = 15000; // 15 seconds
+const JITTER_MAX = 0.1; // 10% maximum jitter factor
 
 export const setupWebSocket = (handlers: WebSocketHandlers) => {
   let ws: WebSocket | null = null;
@@ -120,16 +122,29 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
   };
 
   const scheduleReconnect = () => {
-    const retryDelay = Math.min(
+    // Calculate base delay with exponential backoff
+    const baseDelay = Math.min(
       INITIAL_RETRY_DELAY * Math.pow(2, state.reconnectAttempts),
       MAX_RETRY_DELAY
     );
+    
+    // Add jitter to prevent thundering herd problem
+    const jitter = baseDelay * JITTER_MAX * (Math.random() * 2 - 1);
+    const retryDelay = Math.max(INITIAL_RETRY_DELAY, baseDelay + jitter);
 
-    console.log(`Scheduling reconnect attempt ${state.reconnectAttempts + 1} in ${retryDelay}ms`);
+    console.log(`Scheduling reconnect attempt ${state.reconnectAttempts + 1} in ${retryDelay.toFixed(0)}ms (base: ${baseDelay}ms, jitter: ${jitter.toFixed(0)}ms)`);
     
     reconnectTimeout = setTimeout(() => {
       state.reconnectAttempts++;
-      connect();
+      
+      // Attempt to recover previous connection state if available
+      const recoveryState = {
+        connectionId: state.connectionId,
+        lastMessageTime: state.lastMessageTime,
+        pendingMessages: [] // To be implemented: track unsent messages
+      };
+      
+      connect(recoveryState);
     }, retryDelay);
   };
 

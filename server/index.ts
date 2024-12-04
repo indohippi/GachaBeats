@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
+import { Socket } from "net";
 
 // Constants (ensuring 32-bit integer limits)
 const STARTUP_TIMEOUT = 30 * 1000; // 30 seconds
@@ -119,7 +120,7 @@ async function startServer() {
       // Set up WebSocket handling with enhanced error logging and cleanup
       const activeConnections = new Map();
 
-      server.on('upgrade', (request, socket, head) => {
+      server.on('upgrade', (request, socket: Socket, head) => {
         // Prevent memory leaks from hanging connections
         socket.setTimeout(10000); // 10 second timeout for upgrade
         
@@ -153,7 +154,7 @@ async function startServer() {
             ws.on('error', (wsError) => {
               const conn = activeConnections.get(ws);
               log(`WebSocket error on connection ${conn?.id}: ${wsError.message}`);
-              log(`Connection duration: ${Date.now() - conn?.startTime}ms`);
+              log(`Connection duration: ${Date.now() - (conn?.startTime || 0)}ms`);
             });
 
             ws.on('close', () => {
@@ -199,7 +200,7 @@ async function startServer() {
       // Start server with proper error handling
       const PORT = process.env.PORT || 5000;
       try {
-        server.listen(PORT, "0.0.0.0", () => {
+        server.listen(Number(PORT), "0.0.0.0", () => {
           log(`Server running at http://0.0.0.0:${PORT}`);
           resolve(server);
         });

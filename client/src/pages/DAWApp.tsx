@@ -24,7 +24,7 @@ export default function DAWApp() {
   const connect = useCallback(() => {
     console.log(`Attempting WebSocket connection (attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
     
-    wsRef.current = setupWebSocket({
+    const ws = setupWebSocket({
       onConnect: () => {
         console.log('WebSocket connected successfully');
         setConnected(true);
@@ -69,14 +69,16 @@ export default function DAWApp() {
   }, [reconnectAttempts, toast]);
 
   useEffect(() => {
-    connect();
+    const ws = connect();
+    wsRef.current = ws;
+    
     return () => {
       console.log('Cleaning up WebSocket connection');
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
       if (wsRef.current) {
-        wsRef.current.close();
+        wsRef.current.disconnect();
       }
     };
   }, [connect]);
