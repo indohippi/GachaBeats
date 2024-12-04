@@ -3,9 +3,19 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 
-// Constants
-const STARTUP_TIMEOUT = 30000; // 30 seconds
-const GRACEFUL_SHUTDOWN_TIMEOUT = 10000; // 10 seconds
+// Constants (ensuring 32-bit integer limits)
+const STARTUP_TIMEOUT = 30 * 1000; // 30 seconds
+const GRACEFUL_SHUTDOWN_TIMEOUT = 10 * 1000; // 10 seconds
+const MAX_32_BIT_INT = 0x7FFFFFFF; // Maximum 32-bit signed integer
+
+// Helper function to ensure timeout values are within 32-bit limits
+const safeTimeout = (callback: () => void, delay: number) => {
+  const safeDelay = Math.min(delay, MAX_32_BIT_INT);
+  if (safeDelay !== delay) {
+    console.warn(`Timeout value ${delay} exceeds 32-bit integer limit, capped to ${safeDelay}`);
+  }
+  return setTimeout(callback, safeDelay);
+};
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -106,15 +116,63 @@ async function startServer() {
 
       const server = createServer(app);
 
-      // Set up WebSocket handling with error logging
+      // Set up WebSocket handling with enhanced error logging and cleanup
+      const activeConnections = new Map();
+
       server.on('upgrade', (request, socket, head) => {
+        // Prevent memory leaks from hanging connections
+        socket.setTimeout(10000); // 10 second timeout for upgrade
+        
+        socket.on('error', (err) => {
+          log(`Socket error during WebSocket upgrade: ${err.message}`);
+          socket.destroy();
+        });
+
         try {
           wss.handleUpgrade(request, socket, head, (ws) => {
+            const connectionId = Math.random().toString(36).substr(2, 9);
+            const connInfo = {
+              id: connectionId,
+              startTime: Date.now(),
+              ip: request.socket.remoteAddress,
+              url: request.url,
+              headers: request.headers
+            };
+            
+            activeConnections.set(ws, connInfo);
+            log(`WebSocket connection established - ID: ${connectionId}`);
+            
+            // Log connection details
+            log(`Connection details: ${JSON.stringify({
+              id: connectionId,
+              ip: connInfo.ip,
+              userAgent: connInfo.headers['user-agent']
+            })}`);
+
+            // Add connection-specific error handling
+            ws.on('error', (wsError) => {
+              const conn = activeConnections.get(ws);
+              log(`WebSocket error on connection ${conn?.id}: ${wsError.message}`);
+              log(`Connection duration: ${Date.now() - conn?.startTime}ms`);
+            });
+
+            ws.on('close', () => {
+              const conn = activeConnections.get(ws);
+              if (conn) {
+                log(`WebSocket connection closed - ID: ${conn.id}`);
+                log(`Connection duration: ${Date.now() - conn.startTime}ms`);
+                activeConnections.delete(ws);
+              }
+            });
+
             wss.emit('connection', ws, request);
-            log('WebSocket connection established');
           });
         } catch (wsError) {
           log(`WebSocket upgrade failed: ${wsError instanceof Error ? wsError.message : String(wsError)}`);
+          log(`Upgrade request details: ${JSON.stringify({
+            path: request.url,
+            headers: request.headers
+          })}`);
           socket.destroy();
         }
       });
@@ -172,7 +230,7 @@ async function startServer() {
           await Promise.race([
             shutdownPromise,
             new Promise((_, rejectShutdown) => 
-              setTimeout(() => rejectShutdown(new Error('Shutdown timeout')), GRACEFUL_SHUTDOWN_TIMEOUT)
+              safeTimeout(() => rejectShutdown(new Error('Shutdown timeout')), GRACEFUL_SHUTDOWN_TIMEOUT)
             )
           ]);
           process.exit(0);
@@ -194,7 +252,7 @@ async function startServer() {
     await Promise.race([
       startupPromise,
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Server startup timeout')), STARTUP_TIMEOUT)
+        safeTimeout(() => reject(new Error('Server startup timeout')), STARTUP_TIMEOUT)
       )
     ]);
   } catch (error) {

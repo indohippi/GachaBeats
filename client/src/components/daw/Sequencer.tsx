@@ -12,7 +12,7 @@ export default function Sequencer() {
   const [playing, setPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [bpm, setBpm] = useState(120);
-  const [sequence, setSequence] = useState(
+  const [sequence, setSequence] = useState<boolean[][]>(
     Array(TRACKS).fill(Array(STEPS).fill(false))
   );
 
@@ -40,7 +40,7 @@ export default function Sequencer() {
     setSequence(seq => 
       seq.map((track, tIndex) =>
         tIndex === trackIndex
-          ? track.map((step, sIndex) =>
+          ? track.map((step: boolean, sIndex: number) =>
               sIndex === stepIndex ? !step : step
             )
           : track

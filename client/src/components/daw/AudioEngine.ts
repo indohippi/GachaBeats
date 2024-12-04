@@ -7,7 +7,13 @@ const RETRY_DELAY = 1000;
 // Track initialization state
 let initialized = false;
 let synth: Tone.PolySynth;
-const samplePlayers = new Map<string, Tone.Synth>();
+
+interface SamplePlayer {
+  synth: Tone.Synth | Tone.NoiseSynth | Tone.MetalSynth | Tone.MembraneSynth;
+  type: 'basic' | 'noise' | 'metal' | 'membrane';
+}
+
+const samplePlayers = new Map<string, SamplePlayer>();
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -49,7 +55,6 @@ export const initAudioEngine = async () => {
     console.log('[AudioEngine] Checking audio context...');
     await initializeToneWithRetry();
     
-    // Initialize synthesizer with error handling
     try {
       console.log('[AudioEngine] Creating main synthesizer...');
       synth = new Tone.PolySynth(Tone.Synth).toDestination();
@@ -59,22 +64,21 @@ export const initAudioEngine = async () => {
       throw new Error(`Failed to initialize PolySynth: ${error instanceof Error ? error.message : String(error)}`);
     }
     
-    // Initialize default synthesized sounds with detailed logging
     try {
       console.log('[AudioEngine] Creating default synthesizers...');
       const startTime = performance.now();
       
       console.log('[AudioEngine] Creating kick synth...');
       const kickSynth = new Tone.MembraneSynth().toDestination();
-      samplePlayers.set('kick', kickSynth);
+      samplePlayers.set('kick', { synth: kickSynth, type: 'membrane' });
       
       console.log('[AudioEngine] Creating snare synth...');
       const snareSynth = new Tone.NoiseSynth().toDestination();
-      samplePlayers.set('snare', snareSynth);
+      samplePlayers.set('snare', { synth: snareSynth, type: 'noise' });
       
       console.log('[AudioEngine] Creating hihat synth...');
       const hihatSynth = new Tone.MetalSynth().toDestination();
-      samplePlayers.set('hihat', hihatSynth);
+      samplePlayers.set('hihat', { synth: hihatSynth, type: 'metal' });
       
       const initTime = performance.now() - startTime;
       console.log(`[AudioEngine] Default synthesizers created successfully in ${initTime.toFixed(2)}ms`);
@@ -119,12 +123,18 @@ export const playSample = (name: string) => {
       throw new Error(`Sample '${name}' not found`);
     }
 
-    if (name === 'kick') {
-      (player as Tone.MembraneSynth).triggerAttackRelease('C1', '8n');
-    } else if (name === 'snare') {
-      (player as Tone.NoiseSynth).triggerAttackRelease('8n');
-    } else if (name === 'hihat') {
-      (player as Tone.MetalSynth).triggerAttackRelease('32n');
+    switch (player.type) {
+      case 'membrane':
+        (player.synth as Tone.MembraneSynth).triggerAttackRelease('C1', '8n');
+        break;
+      case 'noise':
+        (player.synth as Tone.NoiseSynth).triggerAttackRelease('8n');
+        break;
+      case 'metal':
+        (player.synth as Tone.MetalSynth).triggerAttackRelease('C4', '32n');
+        break;
+      default:
+        (player.synth as Tone.Synth).triggerAttackRelease('C4', '8n');
     }
   } catch (error) {
     console.error(`Failed to play sample '${name}':`, error);

@@ -8,7 +8,7 @@ import { WebSocketServer } from "ws";
 import authRouter from "./auth";
 
 // Constants for session store health checks
-const SESSION_STORE_CHECK_INTERVAL = 30000; // 30 seconds
+const SESSION_STORE_CHECK_INTERVAL = 15000; // 15 seconds
 const SESSION_CLEANUP_INTERVAL = 86400000; // 24 hours
 const WS_PING_INTERVAL = 30000; // 30 seconds
 const WS_PING_TIMEOUT = 5000; // 5 seconds
@@ -87,33 +87,92 @@ function setupWebSocketServer(): WebSocketServer {
     console.log('New WebSocket connection established');
     clients.add(ws);
     
-    // Set initial alive state
+    // Set initial alive state and connection timestamp
     (ws as any).isAlive = true;
-
+    (ws as any).connectionStartTime = Date.now();
+    (ws as any).messageCount = 0;
+    
+    // Enhanced error handling
     ws.on('error', (error) => {
       console.error('WebSocket connection error:', error);
+      // Log additional connection diagnostics
+      const diagnostics = {
+        connectionDuration: Date.now() - (ws as any).connectionStartTime,
+        messageCount: (ws as any).messageCount,
+        isAlive: (ws as any).isAlive,
+      };
+      console.error('Connection diagnostics:', diagnostics);
     });
 
     ws.on('pong', () => {
       (ws as any).isAlive = true;
+      console.log('Received pong from client, connection alive');
     });
 
+    // Improved message validation and rate limiting
     ws.on('message', (message) => {
       try {
+        // Rate limiting check
+        const now = Date.now();
+        const messageRate = ++((ws as any).messageCount) / ((now - (ws as any).connectionStartTime) / 1000);
+        if (messageRate > 100) { // More than 100 messages per second
+          console.warn('Client exceeding message rate limit');
+          ws.send(JSON.stringify({ type: 'error', message: 'Rate limit exceeded' }));
+          return;
+        }
+
+        // Frame validation
+        if (message.length > 1024 * 1024) { // 1MB limit
+          throw new Error('Message size exceeds limit');
+        }
+
         const data = JSON.parse(message.toString());
-        console.log('Received WebSocket message:', data);
+        
+        // Validate message structure
+        if (!data.type || typeof data.type !== 'string') {
+          throw new Error('Invalid message format: missing or invalid type');
+        }
+
+        console.log('Received WebSocket message:', {
+          type: data.type,
+          size: message.length,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Process message based on type
+        switch (data.type) {
+          case 'ping':
+            ws.send(JSON.stringify({ type: 'pong' }));
+            break;
+          default:
+            console.log('Processing message:', data);
+        }
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
+        console.error('WebSocket message processing error:', error);
+        ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Invalid message format',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        }));
       }
     });
 
-    ws.on('close', () => {
-      console.log('WebSocket connection closed');
+    ws.on('close', (code, reason) => {
+      console.log(`WebSocket connection closed with code ${code}${reason ? ': ' + reason : ''}`);
+      const connectionDuration = Date.now() - (ws as any).connectionStartTime;
+      console.log(`Connection duration: ${connectionDuration}ms, Messages processed: ${(ws as any).messageCount}`);
       clients.delete(ws);
     });
 
-    // Send initial connection confirmation
-    ws.send(JSON.stringify({ type: 'connected' }));
+    // Send initial connection confirmation with connection ID
+    const connectionId = Math.random().toString(36).substr(2, 9);
+    (ws as any).connectionId = connectionId;
+    ws.send(JSON.stringify({ 
+      type: 'connected',
+      connectionId,
+      timestamp: Date.now(),
+      maxMessageSize: 1024 * 1024 // 1MB
+    }));
   });
 
   // Clean up on process exit

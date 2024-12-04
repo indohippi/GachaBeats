@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import * as React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -6,6 +6,8 @@ import Sequencer from '../components/daw/Sequencer';
 import GachaSystem from '../components/gacha/GachaSystem';
 import { setupWebSocket } from '../lib/websocket';
 import { initAudioEngine } from '../components/daw/AudioEngine';
+
+const { useState, useEffect, useCallback, useRef } = React;
 
 // Constants for WebSocket reconnection
 const RECONNECT_DELAY = 5000;
