@@ -80,23 +80,36 @@ export default function DAWApp() {
   }, [connect]);
 
   const handleInitAudio = async () => {
-    console.log('Initializing audio system...');
+    console.log('[DAWApp] Starting audio system initialization...');
+    const startTime = performance.now();
+    
     try {
       await initAudioEngine();
-      console.log('Audio system initialized successfully');
+      const initTime = performance.now() - startTime;
+      console.log(`[DAWApp] Audio system initialized successfully in ${initTime.toFixed(2)}ms`);
+      
       setAudioInitialized(true);
       toast({
         title: "Audio Ready",
         description: "Audio system initialized successfully",
       });
     } catch (err) {
-      console.error('Audio initialization error:', err);
+      const errorTime = performance.now() - startTime;
+      console.error(`[DAWApp] Audio initialization failed after ${errorTime.toFixed(2)}ms:`, err);
+      
       toast({
         title: "Audio Error",
         description: err instanceof Error 
           ? `Failed to initialize audio: ${err.message}`
           : "Failed to initialize audio system",
         variant: "destructive",
+      });
+      
+      // Log additional debug information
+      console.debug('[DAWApp] Audio initialization debug info:', {
+        browserAudioContext: window.AudioContext || window.webkitAudioContext,
+        userAgent: navigator.userAgent,
+        error: err
       });
     }
   };

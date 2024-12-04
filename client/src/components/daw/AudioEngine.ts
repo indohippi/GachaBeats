@@ -40,42 +40,53 @@ async function initializeToneWithRetry(retries = MAX_RETRIES): Promise<void> {
 
 export const initAudioEngine = async () => {
   if (initialized) {
-    console.warn('Audio Engine already initialized');
+    console.warn('[AudioEngine] Already initialized');
     return;
   }
 
-  console.log('Initializing Audio Engine...');
+  console.log('[AudioEngine] Starting initialization...');
   try {
+    console.log('[AudioEngine] Checking audio context...');
     await initializeToneWithRetry();
     
     // Initialize synthesizer with error handling
     try {
+      console.log('[AudioEngine] Creating main synthesizer...');
       synth = new Tone.PolySynth(Tone.Synth).toDestination();
-      console.log('Main synthesizer initialized');
+      console.log('[AudioEngine] Main synthesizer initialized successfully');
     } catch (error) {
+      console.error('[AudioEngine] PolySynth initialization failed:', error);
       throw new Error(`Failed to initialize PolySynth: ${error instanceof Error ? error.message : String(error)}`);
     }
     
     // Initialize default synthesized sounds with detailed logging
     try {
-      console.log('Initializing default synthesizers...');
-      const kickSynth = new Tone.MembraneSynth().toDestination();
-      const snareSynth = new Tone.NoiseSynth().toDestination();
-      const hihatSynth = new Tone.MetalSynth().toDestination();
+      console.log('[AudioEngine] Creating default synthesizers...');
+      const startTime = performance.now();
       
+      console.log('[AudioEngine] Creating kick synth...');
+      const kickSynth = new Tone.MembraneSynth().toDestination();
       samplePlayers.set('kick', kickSynth);
+      
+      console.log('[AudioEngine] Creating snare synth...');
+      const snareSynth = new Tone.NoiseSynth().toDestination();
       samplePlayers.set('snare', snareSynth);
+      
+      console.log('[AudioEngine] Creating hihat synth...');
+      const hihatSynth = new Tone.MetalSynth().toDestination();
       samplePlayers.set('hihat', hihatSynth);
       
-      console.log('Default synthesizers created successfully');
+      const initTime = performance.now() - startTime;
+      console.log(`[AudioEngine] Default synthesizers created successfully in ${initTime.toFixed(2)}ms`);
     } catch (error) {
+      console.error('[AudioEngine] Default synthesizers initialization failed:', error);
       throw new Error(`Failed to initialize default synthesizers: ${error instanceof Error ? error.message : String(error)}`);
     }
     
     initialized = true;
-    console.log('Audio Engine initialization complete');
+    console.log('[AudioEngine] Initialization complete');
   } catch (error) {
-    console.error('Audio Engine initialization failed:', error);
+    console.error('[AudioEngine] Fatal initialization error:', error);
     throw error;
   }
 };
