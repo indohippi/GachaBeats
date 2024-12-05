@@ -69,17 +69,32 @@ export default function DAWApp() {
   }, [reconnectAttempts, toast]);
 
   useEffect(() => {
+    console.log('Initializing WebSocket connection...');
     const ws = connect();
     wsRef.current = ws;
     
+    // Enhanced cleanup function
     return () => {
-      console.log('Cleaning up WebSocket connection');
+      console.log('Cleaning up WebSocket connection and resources...');
+      // Clear any pending timeouts
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = undefined;
       }
+      
+      // Properly close WebSocket connection
       if (wsRef.current) {
-        wsRef.current.disconnect();
+        try {
+          wsRef.current.disconnect();
+          wsRef.current = null;
+        } catch (error) {
+          console.error('Error during WebSocket cleanup:', error);
+        }
       }
+      
+      // Reset connection state
+      setConnected(false);
+      setReconnectAttempts(0);
     };
   }, [connect]);
 

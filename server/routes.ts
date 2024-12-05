@@ -18,19 +18,21 @@ interface ExtendedWebSocket extends WS {
   latencyHistory?: number[];
   recoveryAttempts?: number;
 }
+
 import authRouter from "./auth";
 import { Socket } from "net";
 
 // Constants for session store health checks and WebSocket management
-// Safe timeout values within 32-bit integer limits
-const SESSION_STORE_CHECK_INTERVAL = 5000; // 5 seconds for faster health checks
-const SESSION_CLEANUP_INTERVAL = Math.min(86400000, 0x7FFFFFFF); // 24 hours or max safe value
-const WS_PING_INTERVAL = 15000; // 15 seconds for frequent connection checks
-const WS_PING_TIMEOUT = 5000; // 5 seconds
 const MAX_32_BIT_INT = 0x7FFFFFFF; // Maximum 32-bit signed integer (2147483647)
 
 // Helper function to ensure timeout values are safe
 const getSafeTimeout = (value: number): number => Math.min(value, MAX_32_BIT_INT);
+
+// Safe timeout values using getSafeTimeout
+const SESSION_STORE_CHECK_INTERVAL = getSafeTimeout(5000); // 5 seconds for faster health checks
+const SESSION_CLEANUP_INTERVAL = getSafeTimeout(86400000); // 24 hours
+const WS_PING_INTERVAL = getSafeTimeout(15000); // 15 seconds for frequent connection checks
+const WS_PING_TIMEOUT = getSafeTimeout(5000); // 5 seconds
 
 function setupSessionStore() {
   console.log('Initializing session store...');
@@ -39,15 +41,13 @@ function setupSessionStore() {
   const sessionStore = new PgSession({
     conObject: {
       connectionString: process.env.DATABASE_URL,
-      // Add connection timeout settings
       connectionTimeoutMillis: getSafeTimeout(10000), // 10 second connection timeout
       idleTimeoutMillis: getSafeTimeout(30000), // 30 second idle timeout
     },
     createTableIfMissing: true,
-    pruneSessionInterval: getSafeTimeout(SESSION_CLEANUP_INTERVAL),
+    pruneSessionInterval: SESSION_CLEANUP_INTERVAL,
     errorLog: (error) => {
       console.error('Session store error:', error);
-      // Add specific handling for timeout errors
       if (error.message?.includes('timeout')) {
         console.error('Session store timeout error - attempting recovery');
       }
@@ -61,11 +61,9 @@ function setupSessionStore() {
       console.log('Session store health check passed');
     } catch (error) {
       console.error('Session store health check failed:', error);
-      // Attempt to recover the session store
       try {
         await sessionStore.close();
         console.log('Session store closed, attempting to reconnect...');
-        // The next request will automatically reconnect
       } catch (closeError) {
         console.error('Failed to close session store:', closeError);
       }
@@ -85,40 +83,36 @@ function setupWebSocketServer(): WebSocketServer {
   console.log('WebSocket server initialized successfully');
   
   // Track connected clients
-  const clients = new Set<WebSocket & { isAlive?: boolean; lastPingTime?: number; connectionId?: string; messageCount?: number; connectionStartTime?: number; messageSuccessRate?: number; }>();
+  const clients = new Set<ExtendedWebSocket>();
   
   // WebSocket server monitoring with safe timeout values
   const monitoringInterval = setInterval(() => {
     console.log(`WebSocket status: ${clients.size} clients connected`);
     
     const now = Date.now();
-    // Check all clients' health
     clients.forEach((ws) => {
-      const wsState = ws as any;
-      
-      // Check if connection has exceeded maximum safe timeout
-      if (now - wsState.lastPingTime > getSafeTimeout(WS_PING_INTERVAL * 3)) {
+      if (now - (ws.lastPingTime || 0) > getSafeTimeout(WS_PING_INTERVAL * 3)) {
         console.log('Connection exceeded maximum safe timeout, terminating');
-        ws.terminate();
+        ws.close();
         return;
       }
       
-      if (!wsState.isAlive) {
+      if (!ws.isAlive) {
         console.log('Terminating inactive WebSocket connection');
-        ws.terminate();
+        ws.close();
         return;
       }
       
-      wsState.isAlive = false;
-      wsState.lastPingTime = now;
+      ws.isAlive = false;
+      ws.lastPingTime = now;
       ws.ping();
     });
-  }, getSafeTimeout(WS_PING_INTERVAL));
+  }, WS_PING_INTERVAL);
 
-  // Ensure proper cleanup of monitoring interval
+  // Clean up on process exit
   process.on('SIGTERM', () => {
     clearInterval(monitoringInterval);
-    clients.forEach(ws => ws.terminate());
+    clients.forEach(ws => ws.close());
     clients.clear();
   });
 
@@ -127,81 +121,74 @@ function setupWebSocketServer(): WebSocketServer {
     console.error('WebSocket server error:', error);
   });
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws: ExtendedWebSocket) => {
     console.log('New WebSocket connection established');
     clients.add(ws);
     
     // Enhanced connection state tracking
-    (ws as any).isAlive = true;
-    (ws as any).connectionStartTime = Date.now();
-    (ws as any).messageCount = 0;
-    (ws as any).lastMessageTime = Date.now();
-    (ws as any).recoveryAttempts = 0;
+    ws.isAlive = true;
+    ws.connectionStartTime = Date.now();
+    ws.messageCount = 0;
+    ws.recoveryAttempts = 0;
+    ws.latencyHistory = [];
+    ws.messageSuccessRate = 1.0;
     
     // Connection quality monitoring
-    (ws as any).latencyHistory = [];
-    (ws as any).messageSuccessRate = 1.0;
-    
-    // Enhanced error handling
     ws.on('error', (error) => {
       console.error('WebSocket connection error:', error);
-      // Log additional connection diagnostics
       const diagnostics = {
-        connectionDuration: Date.now() - (ws as any).connectionStartTime,
-        messageCount: (ws as any).messageCount,
-        isAlive: (ws as any).isAlive,
+        connectionDuration: Date.now() - (ws.connectionStartTime || 0),
+        messageCount: ws.messageCount,
+        isAlive: ws.isAlive,
       };
       console.error('Connection diagnostics:', diagnostics);
     });
 
     ws.on('pong', () => {
-      (ws as any).isAlive = true;
+      ws.isAlive = true;
       console.log('Received pong from client, connection alive');
     });
 
     // Improved message validation and rate limiting
-    ws.on('message', (message) => {
+    ws.on('message', (message: RawData) => {
       try {
         const now = Date.now();
-        (ws as any).lastMessageTime = now;
+        ws.lastPingTime = now;
         
         // Enhanced rate limiting with adaptive thresholds
-        const messageRate = ++((ws as any).messageCount) / ((now - (ws as any).connectionStartTime) / 1000);
+        const messageRate = ++ws.messageCount! / ((now - (ws.connectionStartTime || 0)) / 1000);
         const baseLimit = 100; // Base rate limit of 100 messages per second
-        const adaptiveLimit = baseLimit * (ws as any).messageSuccessRate;
+        const adaptiveLimit = baseLimit * (ws.messageSuccessRate || 1);
         
         if (messageRate > adaptiveLimit) {
-          console.warn(`Client ${(ws as any).connectionId} exceeding adapted rate limit: ${messageRate.toFixed(2)}/${adaptiveLimit.toFixed(2)} msg/s`);
+          console.warn(`Client ${ws.connectionId} exceeding adapted rate limit: ${messageRate.toFixed(2)}/${adaptiveLimit.toFixed(2)} msg/s`);
           ws.send(JSON.stringify({ 
             type: 'error', 
             message: 'Rate limit exceeded',
             details: {
               currentRate: messageRate,
               limit: adaptiveLimit,
-              successRate: (ws as any).messageSuccessRate
+              successRate: ws.messageSuccessRate
             }
           }));
           return;
         }
         
-        // Track message latency
-        const start = performance.now();
-
         // Frame validation
-        if (message.length > 1024 * 1024) { // 1MB limit
+        const messageData = message instanceof Buffer ? message : Buffer.from(message);
+        if (messageData.length > 1024 * 1024) { // 1MB limit
           throw new Error('Message size exceeds limit');
         }
 
-        const data = JSON.parse(message.toString());
+        const data = JSON.parse(messageData.toString());
         
-        // Validate message structure
         if (!data.type || typeof data.type !== 'string') {
           throw new Error('Invalid message format: missing or invalid type');
         }
 
         console.log('Received WebSocket message:', {
           type: data.type,
-          size: message.length,
+          size: messageData.length,
           timestamp: new Date().toISOString()
         });
         
@@ -225,26 +212,20 @@ function setupWebSocketServer(): WebSocketServer {
 
     ws.on('close', (code, reason) => {
       console.log(`WebSocket connection closed with code ${code}${reason ? ': ' + reason : ''}`);
-      const connectionDuration = Date.now() - (ws as any).connectionStartTime;
-      console.log(`Connection duration: ${connectionDuration}ms, Messages processed: ${(ws as any).messageCount}`);
+      const connectionDuration = Date.now() - (ws.connectionStartTime || 0);
+      console.log(`Connection duration: ${connectionDuration}ms, Messages processed: ${ws.messageCount}`);
       clients.delete(ws);
     });
 
     // Send initial connection confirmation with connection ID
     const connectionId = Math.random().toString(36).substr(2, 9);
-    (ws as any).connectionId = connectionId;
+    ws.connectionId = connectionId;
     ws.send(JSON.stringify({ 
       type: 'connected',
       connectionId,
       timestamp: Date.now(),
       maxMessageSize: 1024 * 1024 // 1MB
     }));
-  });
-
-  // Clean up on process exit
-  process.on('SIGTERM', () => {
-    clearInterval(monitoringInterval);
-    wss.close(() => console.log('WebSocket server closed'));
   });
 
   return wss;
@@ -268,7 +249,7 @@ export function registerRoutes(app: Express) {
       saveUninitialized: false,
       cookie: {
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge: getSafeTimeout(30 * 24 * 60 * 60 * 1000), // 30 days
       },
     }));
     console.log('Session middleware configured successfully');

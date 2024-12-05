@@ -200,9 +200,15 @@ async function startServer() {
       // Start server with proper error handling
       const PORT = process.env.PORT || 5000;
       try {
-        server.listen(Number(PORT), "0.0.0.0", () => {
-          log(`Server running at http://0.0.0.0:${PORT}`);
+        const port = Number(PORT);
+        server.listen(port, "0.0.0.0", () => {
+          log(`Server running at http://0.0.0.0:${port}`);
           resolve(server);
+        }).on('listening', () => {
+          log(`Server is listening on port ${port}`);
+        }).on('error', (err: NodeJS.ErrnoException) => {
+          log(`Server failed to start: ${err.message}`);
+          reject(err);
         });
 
         server.on('error', (error: NodeJS.ErrnoException) => {

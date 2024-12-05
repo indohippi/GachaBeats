@@ -14,10 +14,23 @@ interface WebSocketState {
 }
 
 // WebSocket connection constants
-const INITIAL_RETRY_DELAY = 500; // 500ms for faster initial reconnection
+const INITIAL_RETRY_DELAY = 500; // 500ms initial delay
 const MAX_RETRY_DELAY = 30000; // 30 seconds maximum delay
 const HEARTBEAT_INTERVAL = 15000; // 15 seconds
 const JITTER_MAX = 0.1; // 10% maximum jitter factor
+const CONNECTION_TIMEOUT = 10000; // 10 seconds connection timeout
+const MAX_RECONNECT_ATTEMPTS = 5; // Maximum number of reconnection attempts
+
+// Connection states
+type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'failed';
+
+// Enhanced WebSocket state tracking
+interface EnhancedWebSocketState extends WebSocketState {
+  connectionState: ConnectionState;
+  lastError?: Error;
+  reconnectTimer?: NodeJS.Timeout;
+  heartbeatTimer?: NodeJS.Timeout;
+}
 
 export const setupWebSocket = (handlers: WebSocketHandlers) => {
   let ws: WebSocket | null = null;
