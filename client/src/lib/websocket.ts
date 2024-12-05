@@ -52,15 +52,50 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
   const connect = () => {
     clearTimers();
     
+    if (ws?.readyState === WebSocket.CONNECTING) {
+      console.log('Already attempting to connect, skipping duplicate attempt');
+      return;
+    }
+    
     if (state.reconnectAttempts >= state.maxReconnectAttempts) {
       console.error('Max reconnection attempts reached');
       handlers.onError?.('Max reconnection attempts reached');
       return;
     }
+    
+    // Reset connection state
+    if (ws) {
+      try {
+        ws.close();
+      } catch (err) {
+        console.error('Error closing existing connection:', err);
+      }
+      ws = null;
+    }
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      const url = `${protocol}//${window.location.host}/ws`;
+      console.log(`Attempting WebSocket connection to ${url}`);
+      
+      // Create new WebSocket with timeout
+      ws = new WebSocket(url);
+      const connectionTimeout = setTimeout(() => {
+        if (ws && ws.readyState !== WebSocket.OPEN) {
+          console.log('WebSocket connection timeout, closing...');
+          ws.close();
+          scheduleReconnect();
+        }
+      }, CONNECTION_TIMEOUT);
+
+      // Set binary type to arraybuffer for better performance
+      ws.binaryType = 'arraybuffer';
+      
+      // Clear timeout on successful connection
+      ws.addEventListener('open', () => {
+        clearTimeout(connectionTimeout);
+      }, { once: true });
+
       setupEventHandlers(ws);
     } catch (error) {
       console.error('WebSocket connection error:', error);

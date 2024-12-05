@@ -69,34 +69,61 @@ export default function DAWApp() {
   }, [reconnectAttempts, toast]);
 
   useEffect(() => {
+    let isCleanedUp = false;
     console.log('Initializing WebSocket connection...');
-    const ws = connect();
-    wsRef.current = ws;
     
-    // Enhanced cleanup function
+    const initConnection = async () => {
+      try {
+        if (!isCleanedUp) {
+          const ws = connect();
+          wsRef.current = ws;
+        }
+      } catch (error) {
+        console.error('Failed to initialize WebSocket connection:', error);
+        if (!isCleanedUp) {
+          toast({
+            title: "Connection Error",
+            description: "Failed to establish WebSocket connection",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
+    initConnection();
+    
+    // Enhanced cleanup function with state tracking
     return () => {
+      isCleanedUp = true;
       console.log('Cleaning up WebSocket connection and resources...');
-      // Clear any pending timeouts
+      
+      // Clear all pending timeouts
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = undefined;
       }
       
-      // Properly close WebSocket connection
+      // Properly close WebSocket connection with retry
       if (wsRef.current) {
         try {
           wsRef.current.disconnect();
           wsRef.current = null;
         } catch (error) {
           console.error('Error during WebSocket cleanup:', error);
+          // Attempt force cleanup if normal disconnect fails
+          try {
+            wsRef.current = null;
+          } catch (forceError) {
+            console.error('Force cleanup failed:', forceError);
+          }
         }
       }
       
-      // Reset connection state
+      // Reset all state
       setConnected(false);
       setReconnectAttempts(0);
     };
-  }, [connect]);
+  }, [connect, toast]);
 
   const handleInitAudio = async () => {
     console.log('[DAWApp] Starting audio system initialization...');
