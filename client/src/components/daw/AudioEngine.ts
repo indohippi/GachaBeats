@@ -1,5 +1,9 @@
 import * as Tone from 'tone';
 
+// Safe timeout helper (to avoid 32-bit integer overflow)
+const MAX_32_BIT_INT = 0x7FFFFFFF; // Max positive 32-bit signed integer (2147483647)
+const getSafeTimeout = (value: number): number => Math.min(value, MAX_32_BIT_INT);
+
 // Constants for retry logic
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
@@ -98,7 +102,7 @@ const GBA_SOUNDS: SoundLibrary = {
 const samplePlayers = new Map<string, AnyPlayer>();
 const soundBuffers = new Map<string, AudioBuffer>();
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, getSafeTimeout(ms)));
 
 export const checkAudioContext = () => {
   if (!initialized) {

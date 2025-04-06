@@ -4,6 +4,10 @@ import type {
   ToastProps,
 } from "@/components/ui/toast";
 
+// Safe timeout helper (to avoid 32-bit integer overflow)
+const MAX_32_BIT_INT = 0x7FFFFFFF; // Max positive 32-bit signed integer (2147483647)
+const getSafeTimeout = (value: number): number => Math.min(value, MAX_32_BIT_INT);
+
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = 3000;
 
@@ -65,7 +69,7 @@ const addToRemoveQueue = (toastId: string) => {
       type: "REMOVE_TOAST",
       toastId: toastId,
     });
-  }, TOAST_REMOVE_DELAY);
+  }, getSafeTimeout(TOAST_REMOVE_DELAY));
 
   toastTimeouts.set(toastId, timeout);
 };

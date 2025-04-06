@@ -7,6 +7,10 @@ const MAX_RETRIES = 5;
 const RETRY_DELAY = 5000; // 5 seconds
 const CONNECTION_TIMEOUT = 10000; // 10 seconds
 
+// Safe timeout helper (to avoid 32-bit integer overflow)
+const MAX_32_BIT_INT = 0x7FFFFFFF; // Max positive 32-bit signed integer (2147483647)
+const getSafeTimeout = (value: number): number => Math.min(value, MAX_32_BIT_INT);
+
 if (!process.env.DATABASE_URL) {
   throw new Error(
     "DATABASE_URL must be set. Did you forget to provision a database?",
@@ -21,7 +25,7 @@ export const db = drizzle({
 });
 
 // Helper function for delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, getSafeTimeout(ms)));
 
 // Verify database connection with timeout and retry logic
 export async function verifyDatabaseConnection(retries = MAX_RETRIES): Promise<boolean> {
@@ -30,7 +34,7 @@ export async function verifyDatabaseConnection(retries = MAX_RETRIES): Promise<b
     
     // Create a timeout promise
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Database connection timeout')), CONNECTION_TIMEOUT);
+      setTimeout(() => reject(new Error('Database connection timeout')), getSafeTimeout(CONNECTION_TIMEOUT));
     });
 
     // Try a simple query to verify connection

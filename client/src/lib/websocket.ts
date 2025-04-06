@@ -20,6 +20,10 @@ interface WebSocketState {
 // Connection states
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'failed';
 
+// Safe timeout helper (to avoid 32-bit integer overflow)
+const MAX_32_BIT_INT = 0x7FFFFFFF;
+const getSafeTimeout = (value: number): number => Math.min(value, MAX_32_BIT_INT);
+
 // WebSocket connection constants
 const INITIAL_RETRY_DELAY = 1000; // 1 second initial delay
 const MAX_RETRY_DELAY = 30000; // 30 seconds maximum delay
@@ -157,9 +161,9 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
       // Make sure the URL matches the server's expected path exactly
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       
-      // Build a full URL with the explicit ws endpoint
-      const baseUrl = `${protocol}//${window.location.host}`;
-      const url = `${baseUrl}/ws`;
+      // Use just the host without port and let the browser handle the port
+      const host = window.location.host;
+      const url = `${protocol}//${host}/ws`;
       
       console.log(`Attempting WebSocket connection to ${url}`);
       
@@ -174,7 +178,7 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
           state.connectionState = 'disconnected';
           scheduleReconnect();
         }
-      }, CONNECTION_TIMEOUT);
+      }, getSafeTimeout(CONNECTION_TIMEOUT));
 
       setupEventHandlers(ws);
 
@@ -207,7 +211,7 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
             socket.close();
           }
         }
-      }, HEARTBEAT_INTERVAL);
+      }, getSafeTimeout(HEARTBEAT_INTERVAL));
     };
 
     socket.onclose = () => {
@@ -269,7 +273,7 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
     reconnectTimeout = setTimeout(() => {
       state.reconnectAttempts++;
       connect();
-    }, retryDelay);
+    }, getSafeTimeout(retryDelay));
   };
 
   // Initial connection

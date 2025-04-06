@@ -9,6 +9,10 @@ import { RawData, Data } from 'ws';
 import { Socket } from "net";
 import authRouter from "./auth";
 
+// Safe timeout helper (to avoid 32-bit integer overflow)
+const MAX_32_BIT_INT = 0x7FFFFFFF; // Max positive 32-bit signed integer (2147483647)
+const getSafeTimeout = (value: number): number => Math.min(value, MAX_32_BIT_INT);
+
 // Extended WebSocket type with our custom properties
 interface ExtendedWebSocket extends WS {
   isAlive?: boolean;
@@ -20,10 +24,6 @@ interface ExtendedWebSocket extends WS {
   latencyHistory?: number[];
   recoveryAttempts?: number;
 }
-
-// Constants
-const MAX_32_BIT_INT = 0x7FFFFFFF;
-const getSafeTimeout = (value: number): number => Math.min(value, MAX_32_BIT_INT);
 
 // Safe timeout values
 const SESSION_STORE_CHECK_INTERVAL = getSafeTimeout(5000);
@@ -110,7 +110,7 @@ function setupWebSocketServer(): WebSocketServer {
         clients.delete(ws);
       }
     });
-  }, WS_PING_INTERVAL);
+  }, getSafeTimeout(WS_PING_INTERVAL));
 
   process.on('SIGTERM', () => {
     clearInterval(monitoringInterval);

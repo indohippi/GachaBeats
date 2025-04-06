@@ -1,13 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  Card,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-  Button,
-  Slider,
-} from '../ui';
+import { Card } from '../../components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
+import { Button } from '../../components/ui/button';
+import { Slider } from '../../components/ui/slider';
 import Track from './Track';
 import {
   playNote,
