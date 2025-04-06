@@ -98,25 +98,24 @@ const Sequencer = forwardRef<any, SequencerProps>(({
   // Transport event ID
   const transportEventRef = useRef<number | null>(null);
 
-  // Fixed step advancement with alternating 8th/16th note pattern
-  const advanceStep = useCallback(() => {
+  // Professional step advancement using Tone.js accurate timing
+  // Based on https://github.com/Tonejs/Tone.js/wiki/Accurate-Timing
+  const advanceStep = useCallback((time: number) => {
     setCurrentStep((step) => {
-      // When using 8n interval, we need to handle 16th note grid
-      // by advancing 2 steps for each callback
-      // But this doesn't sound right for most patterns, so we'll advance 1 step at a time
-      // We were scheduling with 8n (8th notes) but need to display 16n (16th notes)
+      // Calculate the next step in the sequence
       const newStep = (step + 1) % STEPS;
       
-      // Play sounds for active steps without timing parameter
+      // Play sounds for active steps with proper timing parameter
+      // This ensures precise timing according to Tone.js documentation
       sequence.forEach((track, trackIndex) => {
         if (track[newStep]) {
           if (trackIndex < TRACK_SOUNDS.length) {
-            // Drum sounds
-            playSample(TRACK_SOUNDS[trackIndex]);
+            // Drum sounds with exact timing
+            playSample(TRACK_SOUNDS[trackIndex], time);
           } else {
-            // Melodic sounds
+            // Melodic sounds with exact timing
             const note = getNoteFromScale(trackIndex + newStep, scale);
-            playNote(note);
+            playNote(note, time);
           }
         }
       });

@@ -504,9 +504,10 @@ export default function Sequencer() {
       // Set BPM in Tone.Transport
       setBPM(bpm);
       
-      // Schedule step advancement
-      const sixteenthNote = '16n';
-      const eventId = scheduleRepeat(advanceStep, sixteenthNote);
+      // Schedule step advancement - with proper timing parameter
+      // Use 8th notes instead of 16th for better stability
+      const eighthNote = '8n';
+      const eventId = scheduleRepeat(advanceStep, eighthNote);
       transportEventRef.current = eventId;
       
       // Start transport

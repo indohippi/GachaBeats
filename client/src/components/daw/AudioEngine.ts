@@ -621,19 +621,22 @@ export const stopTransport = () => {
   }
 };
 
-export const scheduleRepeat = (callback: () => void, interval: string) => {
+// Schedule repeating events with proper timing according to official Tone.js docs
+// https://github.com/Tonejs/Tone.js/wiki/Accurate-Timing
+export const scheduleRepeat = (callback: (time: number) => void, interval: string) => {
   try {
     checkAudioContext();
     
     // Make sure interval is valid
     if (!interval || typeof interval !== 'string') {
-      interval = "16n";
+      interval = "8n"; // Use 8n instead of 16n for better stability
     }
     
-    // Simplified callback without time parameter to avoid timing issues
-    const id = transport.scheduleRepeat(() => {
+    // Pass the time parameter to the callback for accurate timing
+    // This follows the Tone.js best practices for scheduling
+    const id = transport.scheduleRepeat((time) => {
       try {
-        callback();
+        callback(time);
       } catch (innerError) {
         console.error('[AudioEngine] Error in scheduled callback:', innerError);
       }
