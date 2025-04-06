@@ -98,40 +98,26 @@ const Sequencer = forwardRef<any, SequencerProps>(({
   // Transport event ID
   const transportEventRef = useRef<number | null>(null);
 
-  // Step advancement function
-  const advanceStep = useCallback((time: number) => {
-    try {
-      // Log timing information for debugging (only occasionally)
-      if (currentStep % 32 === 0) {
-        const now = performance.now();
-        const scheduledTime = time * 1000; // Convert to milliseconds
-        const lookAhead = scheduledTime - now;
-        console.log(`[Sequencer] Step timing - lookahead: ${lookAhead.toFixed(2)}ms`);
-      }
+  // Basic step advancement without complex timing
+  const advanceStep = useCallback(() => {
+    setCurrentStep((step) => {
+      const newStep = (step + 1) % STEPS;
       
-      setCurrentStep((step) => {
-        const newStep = (step + 1) % STEPS;
-        
-        // Play sounds for active steps
-        sequence.forEach((track, trackIndex) => {
-          if (track[newStep]) {
-            if (trackIndex < TRACK_SOUNDS.length) {
-              // Use predefined sounds for drums
-              playSample(TRACK_SOUNDS[trackIndex], time);
-            } else {
-              // Use notes from scale for melodic parts
-              const note = getNoteFromScale(trackIndex + newStep, scale);
-              playNote(note, time);
-            }
+      // Play sounds for active steps immediately
+      sequence.forEach((track, trackIndex) => {
+        if (track[newStep]) {
+          if (trackIndex < TRACK_SOUNDS.length) {
+            playSample(TRACK_SOUNDS[trackIndex]);
+          } else {
+            const note = getNoteFromScale(trackIndex + newStep, scale);
+            playNote(note);
           }
-        });
-        
-        return newStep;
+        }
       });
-    } catch (error) {
-      console.error("[Sequencer] Error in step advancement:", error);
-    }
-  }, [sequence, scale, currentStep]);
+      
+      return newStep;
+    });
+  }, [sequence, scale]);
 
   // Define beat presets library
   const BEAT_PRESETS = {
@@ -641,39 +627,30 @@ const Sequencer = forwardRef<any, SequencerProps>(({
     setSequence(Array(TRACKS).fill(null).map(() => Array(STEPS).fill(false)));
   }, []);
 
-  // Optimized BPM wrapper with proper stability safeguards
+  // Simple BPM wrapper without complex timing
   const handleBpmChange = useCallback((value: number) => {
     try {
       // Only update if BPM has actually changed and is within valid range
       if (value !== bpm && value >= 60 && value <= 200) {
         console.log(`[Sequencer] Changing BPM from ${bpm} to ${value}`);
         
-        // Store current playback state
-        const wasPlaying = playing;
-        
-        // Immediately update the displayed BPM value for responsive UI
+        // Immediately update the displayed BPM value
         setBpmState(value);
         
-        // Use the Web Audio API timing context for precise timing changes
+        // If playing, we need to restart the transport
+        const wasPlaying = playing;
+        
         if (wasPlaying) {
-          // Stop transport first to reset timing
+          // Stop transport first
           stopTransport();
-          console.log("[Sequencer] Temporarily stopped transport for BPM change");
         }
         
         // Set the new BPM value in the audio engine
         setBPM(value);
         
-        // Small delay to allow BPM change to take effect, using safe timeout
-        // This prevents audio glitches during rapid BPM changes
-        if (wasPlaying) {
-          const bpmChangeTimeoutId = getSafeTimeout(() => {
-            // Only restart if still in playing state (user might have clicked stop)
-            if (playing) {
-              startTransport();
-              console.log("[Sequencer] Restarted transport after BPM change");
-            }
-          }, 100); // 100ms delay for better stability during BPM changes
+        // Restart immediately if it was playing
+        if (wasPlaying && playing) {
+          startTransport();
         }
       }
     } catch (error) {

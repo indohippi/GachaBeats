@@ -621,28 +621,23 @@ export const stopTransport = () => {
   }
 };
 
-export const scheduleRepeat = (callback: (time: number) => void, interval: string) => {
+export const scheduleRepeat = (callback: () => void, interval: string) => {
   try {
     checkAudioContext();
     
-    // Using the look-ahead time of 0.1 seconds gives better timing accuracy
-    // This helps prevent timing drift that can happen with WebAudio
-    const lookAhead = 0.1;
-    
-    // Make sure interval is valid to prevent edge cases
+    // Make sure interval is valid
     if (!interval || typeof interval !== 'string') {
-      console.warn('[AudioEngine] Invalid interval provided, using "16n" as default');
       interval = "16n";
     }
     
-    // Pass the exact scheduled time to the callback for accurate scheduling
-    const id = transport.scheduleRepeat((time) => {
+    // Simplified callback without time parameter to avoid timing issues
+    const id = transport.scheduleRepeat(() => {
       try {
-        callback(time);
+        callback();
       } catch (innerError) {
         console.error('[AudioEngine] Error in scheduled callback:', innerError);
       }
-    }, interval, "+0.01", lookAhead); // Start after 0.01s with lookAhead for stability
+    }, interval);
     
     console.log(`[AudioEngine] Scheduled repeated event with ID ${id} and interval ${interval}`);
     return id;
