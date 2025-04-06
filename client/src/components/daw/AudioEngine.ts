@@ -564,31 +564,98 @@ export const getTransport = () => {
 };
 
 export const setBPM = (bpm: number) => {
-  checkAudioContext();
-  transport.bpm.value = bpm;
+  try {
+    checkAudioContext();
+    // Use ramp for smoother BPM transitions that avoids glitches
+    // Linear ramp over 0.1 seconds to prevent audio artifacts
+    transport.bpm.rampTo(bpm, 0.1);
+    console.log(`[AudioEngine] BPM set to ${bpm}`);
+  } catch (error) {
+    console.error(`[AudioEngine] Failed to set BPM to ${bpm}:`, error);
+  }
 };
 
 export const startTransport = () => {
-  checkAudioContext();
-  transport.start();
+  try {
+    checkAudioContext();
+    
+    // Make sure we're not already running to avoid timing issues
+    if (transport.state !== "started") {
+      // Reset Tone.js internal clock for better sync
+      Tone.Transport.position = 0;
+      transport.start("+0.1"); // Small delay for stable scheduling
+      console.log("[AudioEngine] Transport started");
+    } else {
+      console.log("[AudioEngine] Transport already running");
+    }
+  } catch (error) {
+    console.error("[AudioEngine] Failed to start transport:", error);
+  }
 };
 
 export const stopTransport = () => {
-  checkAudioContext();
-  transport.stop();
+  try {
+    checkAudioContext();
+    
+    // Only stop if currently running
+    if (transport.state === "started") {
+      transport.stop();
+      console.log("[AudioEngine] Transport stopped");
+      
+      // Reset Tone.js internal clock for better sync on next start
+      Tone.Transport.position = 0;
+    } else {
+      console.log("[AudioEngine] Transport already stopped");
+    }
+  } catch (error) {
+    console.error("[AudioEngine] Failed to stop transport:", error);
+  }
 };
 
 export const scheduleRepeat = (callback: (time: number) => void, interval: string) => {
-  checkAudioContext();
-  // Pass the exact scheduled time to the callback for accurate scheduling
-  return transport.scheduleRepeat((time) => {
-    callback(time);
-  }, interval);
+  try {
+    checkAudioContext();
+    
+    // Using the look-ahead time of 0.1 seconds gives better timing accuracy
+    // This helps prevent timing drift that can happen with WebAudio
+    const lookAhead = 0.1;
+    
+    // Make sure interval is valid to prevent edge cases
+    if (!interval || typeof interval !== 'string') {
+      console.warn('[AudioEngine] Invalid interval provided, using "16n" as default');
+      interval = "16n";
+    }
+    
+    // Pass the exact scheduled time to the callback for accurate scheduling
+    const id = transport.scheduleRepeat((time) => {
+      try {
+        callback(time);
+      } catch (innerError) {
+        console.error('[AudioEngine] Error in scheduled callback:', innerError);
+      }
+    }, interval, "+0.01", lookAhead); // Start after 0.01s with lookAhead for stability
+    
+    console.log(`[AudioEngine] Scheduled repeated event with ID ${id} and interval ${interval}`);
+    return id;
+  } catch (error) {
+    console.error('[AudioEngine] Failed to schedule repeat:', error);
+    return -1; // Return invalid ID
+  }
 };
 
 export const clearRepeat = (id: number) => {
-  checkAudioContext();
-  transport.clear(id);
+  try {
+    checkAudioContext();
+    
+    if (id >= 0) {
+      transport.clear(id);
+      console.log(`[AudioEngine] Cleared scheduled event with ID ${id}`);
+    } else {
+      console.warn('[AudioEngine] Attempted to clear invalid event ID:', id);
+    }
+  } catch (error) {
+    console.error(`[AudioEngine] Failed to clear event with ID ${id}:`, error);
+  }
 };
 
 // Get a note from the GBA scales

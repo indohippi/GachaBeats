@@ -1,0 +1,40 @@
+The above error occurred in the <ForwardRef> component:
+
+    at https://1f6dda27-d98b-4104-9bed-71b1acb458d0-00-2qa2y3r3j6yk3.worf.replit.dev/src/components/daw/Sequencer.tsx:70:3
+    at div
+    at div
+    at div
+    at _c (https://1f6dda27-d98b-4104-9bed-71b1acb458d0-00-2qa2y3r3j6yk3.worf.replit.dev/src/components/ui/card.tsx:20:11)
+    at div
+    at DAWApp (https://1f6dda27-d98b-4104-9bed-71b1acb458d0-00-2qa2y3r3j6yk3.worf.replit.dev/src/pages/DAWApp.tsx:31:37)
+    at Route (https://1f6dda27-d98b-4104-9bed-71b1acb458d0-00-2qa2y3r3j6yk3.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=4238f218:323:16)
+    at Switch (https://1f6dda27-d98b-4104-9bed-71b1acb458d0-00-2qa2y3r3j6yk3.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=4238f218:379:17)
+    at QueryClientProvider (https://1f6dda27-d98b-4104-9bed-71b1acb458d0-00-2qa2y3r3j6yk3.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=4238f218:2797:3)
+    at ErrorBoundary (https://1f6dda27-d98b-4104-9bed-71b1acb458d0-00-2qa2y3r3j6yk3.worf.replit.dev/src/components/ErrorBoundary.tsx:9:5)
+    at App
+
+React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+Error caught by boundary: 
+Error {}
+ 
+Object {componentStack: "↵    at…"}
+
+Cleaning up WebSocket connection on component unmount
+WebSocket connection closed
+WebSocket disconnected
+Scheduling reconnect attempt 1 in 1000ms
+Attempting WebSocket connection to wss://1f6dda27-d98b-4104-9bed-71b1acb458d0-00-2qa2y3r3j6yk3.worf.replit.dev/ws
+WebSocket connection established
+WebSocket connected successfully
+Connected with ID: uf1e5rsxy
+Attempting WebSocket connection (attempt 1/5)
+Attempting WebSocket connection to wss://1f6dda27-d98b-4104-9bed-71b1acb458d0-00-2qa2y3r3j6yk3.worf.replit.dev/ws
+WebSocket connection established
+WebSocket connected successfully
+Connected with ID: lcrfssnzj
+WebSocket connection closed
+WebSocket disconnected
+Scheduling reconnect attempt 1 in 1004ms
+WebSocket connection closed
+WebSocket disconnected
+Scheduling reconnect attempt 1 in 1000ms
