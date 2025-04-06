@@ -4,17 +4,14 @@ import { getSafeTimeout } from '../../lib/utils';
 // Fix for Tone.js timeout overflow issues
 const MAX_SAFE_TIMEOUT = 2147483647; // Max 32-bit signed integer (2^31 - 1)
 
-// Monkey patch Tone.js internal scheduling to prevent TimeoutOverflowWarning
-// This overrides the problematic _timeoutMethod in the Tone.js context
-const originalContextTimeout = Tone.context.setTimeout;
-Tone.context.setTimeout = (fn: () => void, timeout: number): number => {
-  // If the timeout value is too large (overflow) or negative, use a reasonable fallback
-  if (timeout > MAX_SAFE_TIMEOUT || timeout < 0) {
-    console.warn(`[AudioEngine] Correcting unsafe timeout: ${timeout}ms → 1000ms`);
-    timeout = 1000; // Use a reasonable default value instead
+// Simple helper for Tone.js timeout issues
+function safeScheduleTimeout(fn: () => void, timeout: number): number {
+  // Cap the timeout to avoid overflow
+  if (timeout > 2000 || timeout < 0) {
+    timeout = 2000;
   }
-  return originalContextTimeout(fn, timeout);
-};
+  return window.setTimeout(fn, timeout);
+}
 
 // Constants for retry logic
 const MAX_RETRIES = 3;
@@ -114,7 +111,7 @@ const GBA_SOUNDS: SoundLibrary = {
 const samplePlayers = new Map<string, AnyPlayer>();
 const soundBuffers = new Map<string, AudioBuffer>();
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, Math.min(ms, MAX_SAFE_TIMEOUT)));
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, Math.min(ms, 2000)));
 
 export const checkAudioContext = () => {
   if (!initialized) {

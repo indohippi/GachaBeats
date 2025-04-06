@@ -98,43 +98,38 @@ const Sequencer = forwardRef<any, SequencerProps>(({
   // Transport event ID
   const transportEventRef = useRef<number | null>(null);
 
-  // Optimized step advancement function with improved timing and correction mechanism
+  // Step advancement function
   const advanceStep = useCallback((time: number) => {
     try {
-      // Avoid using setState in the audio thread for better performance
-      const newStep = (currentStep + 1) % STEPS;
+      // Log timing information for debugging (only occasionally)
+      if (currentStep % 32 === 0) {
+        const now = performance.now();
+        const scheduledTime = time * 1000; // Convert to milliseconds
+        const lookAhead = scheduledTime - now;
+        console.log(`[Sequencer] Step timing - lookahead: ${lookAhead.toFixed(2)}ms`);
+      }
       
-      // Play sounds for active steps at the exact scheduled time
-      // Do this first before any state updates for better timing accuracy
-      sequence.forEach((track, trackIndex) => {
-        try {
+      setCurrentStep((step) => {
+        const newStep = (step + 1) % STEPS;
+        
+        // Play sounds for active steps
+        sequence.forEach((track, trackIndex) => {
           if (track[newStep]) {
-            // Apply a small timing adjustment to ensure synchronization
-            const adjustedTime = time + 0.01; // Small adjustment for better synchronization
-            
             if (trackIndex < TRACK_SOUNDS.length) {
-              // Percussion sounds
-              playSample(TRACK_SOUNDS[trackIndex], adjustedTime);
+              // Use predefined sounds for drums
+              playSample(TRACK_SOUNDS[trackIndex], time);
             } else {
-              // Melodic parts
+              // Use notes from scale for melodic parts
               const note = getNoteFromScale(trackIndex + newStep, scale);
-              playNote(note, adjustedTime);
+              playNote(note, time);
             }
           }
-        } catch (trackError) {
-          // Silent fail to not interrupt the audio loop
-        }
+        });
+        
+        return newStep;
       });
-      
-      // Use requestAnimationFrame to update UI state outside audio callback
-      // This prevents audio timing glitches caused by React state updates
-      requestAnimationFrame(() => {
-        setCurrentStep(newStep);
-      });
-      
     } catch (error) {
       console.error("[Sequencer] Error in step advancement:", error);
-      // Don't update state on error to maintain stability
     }
   }, [sequence, scale, currentStep]);
 
@@ -557,98 +552,36 @@ const Sequencer = forwardRef<any, SequencerProps>(({
     generateBeatPreset('retro-gba');
   }, [generateBeatPreset]);
 
-  // Highly optimized transport control with stable scheduling and error management
+  // Simple transport control without complex error handling
   useEffect(() => {
-    let schedulerTimeout: number | null = null;
-    
-    const setupSequencer = () => {
-      try {
-        console.log("[Sequencer] Starting sequencer playback...");
-        
-        // Set BPM in Tone.Transport
-        setBPM(bpm);
-        
-        // Use a precise timing interval with lookAhead
-        const sixteenthNote = '16n';
-        
-        // Schedule step advancement
-        const eventId = scheduleRepeat(advanceStep, sixteenthNote);
-        transportEventRef.current = eventId;
-        console.log(`[Sequencer] Scheduled sequencer with event ID ${eventId}`);
-        
-        // Start transport after a small delay for better synchronization
-        startTransport();
-      } catch (setupError) {
-        console.error("[Sequencer] Error during playback setup:", setupError);
-        
-        // Try to recover from setup error
-        if (transportEventRef.current !== null) {
-          clearRepeat(transportEventRef.current);
-          transportEventRef.current = null;
-        }
-        
-        // Show user error (could be improved with Toast or similar notification)
-        console.warn("[Sequencer] Attempting to recover from audio error...");
-        
-        // Try again with a delay
-        schedulerTimeout = window.setTimeout(() => {
-          setupSequencer();
-        }, 500);
-      }
-    };
-    
-    const cleanupSequencer = () => {
-      if (transportEventRef.current !== null) {
-        console.log("[Sequencer] Stopping sequencer playback...");
-        
-        // Clear the scheduled event
-        try {
-          clearRepeat(transportEventRef.current);
-          console.log(`[Sequencer] Cleared scheduled event ID ${transportEventRef.current}`);
-        } catch (clearError) {
-          console.error("[Sequencer] Error clearing repeat event:", clearError);
-        }
-        
-        transportEventRef.current = null;
-        
-        // Stop transport
-        try {
-          stopTransport();
-        } catch (stopError) {
-          console.error("[Sequencer] Error stopping transport:", stopError);
-        }
-        
-        // Reset current step to beginning (in a safe manner)
-        requestAnimationFrame(() => {
-          setCurrentStep(0);
-        });
-      }
-    };
-    
-    try {
-      if (playing) {
-        setupSequencer();
-      } else {
-        cleanupSequencer();
-      }
-    } catch (error) {
-      console.error("[Sequencer] Transport control fatal error:", error);
+    if (playing) {
+      console.log("[Sequencer] Starting sequencer playback...");
+      setBPM(bpm);
       
-      // Attempt to clean up and recover
-      if (transportEventRef.current !== null) {
-        clearRepeat(transportEventRef.current);
-        transportEventRef.current = null;
-        stopTransport();
-      }
+      const eventId = scheduleRepeat(advanceStep, '16n');
+      transportEventRef.current = eventId;
+      console.log(`[Sequencer] Scheduled sequencer with event ID ${eventId}`);
+      
+      startTransport();
+    } else if (transportEventRef.current !== null) {
+      console.log("[Sequencer] Stopping sequencer playback...");
+      
+      clearRepeat(transportEventRef.current);
+      console.log(`[Sequencer] Cleared scheduled event ID ${transportEventRef.current}`);
+      transportEventRef.current = null;
+      
+      stopTransport();
+      setCurrentStep(0);
     }
     
     return () => {
-      // Cleanup when component unmounts or dependencies change
-      if (schedulerTimeout) {
-        window.clearTimeout(schedulerTimeout);
+      if (transportEventRef.current !== null) {
+        console.log("[Sequencer] Cleaning up transport on unmount");
+        clearRepeat(transportEventRef.current);
+        transportEventRef.current = null;
+        stopTransport();
+        setCurrentStep(0);
       }
-      
-      cleanupSequencer();
     };
   }, [playing, bpm, advanceStep]);
 
