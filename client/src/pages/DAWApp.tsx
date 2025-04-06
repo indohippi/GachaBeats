@@ -70,13 +70,24 @@ export default function DAWApp() {
 
   useEffect(() => {
     let isCleanedUp = false;
+    let wsConnection: { close: () => void } | null = null;
+    
     console.log('Initializing WebSocket connection...');
+    
+    // Don't connect until audio is initialized
+    if (!audioInitialized) {
+      console.log('Delaying WebSocket connection until audio is initialized');
+      return () => {
+        isCleanedUp = true;
+      };
+    }
     
     const initConnection = async () => {
       try {
         if (!isCleanedUp) {
-          const ws = connect();
-          wsRef.current = ws;
+          console.log('Creating new WebSocket connection');
+          wsConnection = connect();
+          wsRef.current = wsConnection;
         }
       } catch (error) {
         console.error('Failed to initialize WebSocket connection:', error);
@@ -104,9 +115,10 @@ export default function DAWApp() {
       }
       
       // Properly close WebSocket connection with retry
-      if (wsRef.current) {
+      if (wsConnection) {
         try {
-          wsRef.current.close();
+          console.log('Closing WebSocket connection');
+          wsConnection.close();
           wsRef.current = null;
         } catch (error) {
           console.error('Error during WebSocket cleanup:', error);
@@ -123,7 +135,7 @@ export default function DAWApp() {
       setConnected(false);
       setReconnectAttempts(0);
     };
-  }, [connect, toast]);
+  }, [connect, toast, audioInitialized]);
 
   const handleInitAudio = async () => {
     console.log('[DAWApp] Starting audio system initialization...');

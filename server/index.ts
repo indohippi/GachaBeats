@@ -107,40 +107,58 @@ async function startServer() {
 
     // Set up WebSocket upgrade handling
     server.on('upgrade', (request, socket: Socket, head) => {
-      socket.setTimeout(getSafeTimeout(10000)); // 10 second timeout for upgrade
+      // Check if the request is for our WebSocket endpoint
+      const pathname = new URL(request.url as string, 'http://localhost').pathname;
       
-      socket.on('error', (err) => {
-        log(`Socket error during WebSocket upgrade: ${err.message}`);
-        try {
-          socket.end('HTTP/1.1 503 Service Unavailable\r\n\r\n');
-        } catch (closeError) {
-          log(`Error while closing socket: ${closeError instanceof Error ? closeError.message : String(closeError)}`);
-        } finally {
-          socket.destroy();
-        }
-      });
-
-      try {
-        wss.handleUpgrade(request, socket, head, (ws) => {
-          const wsConnectionId = Math.random().toString(36).substr(2, 9);
-          const startTime = Date.now();
-          
-          log(`New WebSocket connection - ID: ${wsConnectionId}, StartTime: ${startTime}`);
-          
-          ws.on('error', (wsError) => {
-            log(`WebSocket error on connection ${wsConnectionId}: ${wsError.message}`);
-            log(`Connection duration: ${Date.now() - startTime}ms`);
-          });
-
-          ws.on('close', () => {
-            log(`WebSocket connection closed - ID: ${wsConnectionId}`);
-            log(`Connection duration: ${Date.now() - startTime}ms`);
-          });
-
-          wss.emit('connection', ws, request);
+      if (pathname === '/ws') {
+        log(`WebSocket upgrade request for ${pathname}`);
+        
+        // Set a reasonable timeout for the upgrade process
+        socket.setTimeout(getSafeTimeout(10000)); // 10 second timeout for upgrade
+        
+        socket.on('error', (err) => {
+          log(`Socket error during WebSocket upgrade: ${err.message}`);
+          try {
+            socket.end('HTTP/1.1 503 Service Unavailable\r\n\r\n');
+          } catch (closeError) {
+            log(`Error while closing socket: ${closeError instanceof Error ? closeError.message : String(closeError)}`);
+          } finally {
+            socket.destroy();
+          }
         });
-      } catch (wsError) {
-        log(`WebSocket upgrade failed: ${wsError instanceof Error ? wsError.message : String(wsError)}`);
+
+        try {
+          wss.handleUpgrade(request, socket, head, (ws) => {
+            const wsConnectionId = Math.random().toString(36).substring(2, 9);
+            const startTime = Date.now();
+            
+            log(`New WebSocket connection - ID: ${wsConnectionId}, StartTime: ${startTime}`);
+            
+            ws.on('error', (wsError) => {
+              log(`WebSocket error on connection ${wsConnectionId}: ${wsError.message}`);
+              log(`Connection duration: ${Date.now() - startTime}ms`);
+            });
+
+            ws.on('close', () => {
+              log(`WebSocket connection closed - ID: ${wsConnectionId}`);
+              log(`Connection duration: ${Date.now() - startTime}ms`);
+            });
+
+            wss.emit('connection', ws, request);
+          });
+        } catch (wsError) {
+          log(`WebSocket upgrade failed: ${wsError instanceof Error ? wsError.message : String(wsError)}`);
+          try {
+            socket.end('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+          } catch (endError) {
+            log(`Failed to end socket after upgrade error: ${endError instanceof Error ? endError.message : String(endError)}`);
+          } finally {
+            socket.destroy();
+          }
+        }
+      } else {
+        // Not a WebSocket request for our endpoint
+        log(`Ignoring non-WebSocket upgrade request for ${pathname}`);
         socket.destroy();
       }
     });
@@ -165,7 +183,7 @@ async function startServer() {
     }
 
     // Start server
-    const PORT = process.env.PORT || 5000;
+    const PORT = parseInt(process.env.PORT || '5000', 10);
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running at http://0.0.0.0:${PORT}`);
     }).on('error', (error: NodeJS.ErrnoException) => {

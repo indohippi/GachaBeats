@@ -1,4 +1,5 @@
-import { WebSocket } from 'ws';
+// Using browser's native WebSocket, not the 'ws' import
+// Browser's WebSocket is already available globally
 
 interface WebSocketHandlers {
   onConnect?: () => void;

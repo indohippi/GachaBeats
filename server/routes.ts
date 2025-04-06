@@ -4,8 +4,8 @@ import pgSimple from "connect-pg-simple";
 import { db } from "../db";
 import { sounds, userSounds, users } from "@db/schema";
 import { eq } from "drizzle-orm";
-import { WebSocketServer, WebSocket as WS } from "ws";
-import { RawData } from 'ws';
+import { WebSocketServer, WebSocket as WS, MessageEvent } from "ws";
+import { RawData, Data } from 'ws';
 import { Socket } from "net";
 import authRouter from "./auth";
 
@@ -65,29 +65,43 @@ function setupSessionStore() {
 
 function setupWebSocketServer(): WebSocketServer {
   console.log('Initializing WebSocket server...');
-  const wss = new WebSocketServer({ noServer: true });
+  // Use path-based WebSocket server for more reliable connections
+  const wss = new WebSocketServer({ 
+    noServer: true,
+    path: '/ws'
+  });
   const clients = new Set<ExtendedWebSocket>();
   
   const monitoringInterval = setInterval(() => {
     console.log(`WebSocket status: ${clients.size} clients connected`);
     
+    if (clients.size === 0) {
+      console.log('No WebSocket clients connected');
+      return;
+    }
+    
     const now = Date.now();
     clients.forEach((ws) => {
-      if (now - (ws.lastPingTime || 0) > WS_PING_INTERVAL * 3) {
-        console.log('Connection exceeded maximum safe timeout, terminating');
-        ws.close();
-        return;
+      try {
+        if (now - (ws.lastPingTime || 0) > WS_PING_INTERVAL * 3) {
+          console.log('Connection exceeded maximum safe timeout, terminating');
+          ws.close(1000, 'Connection timeout');
+          return;
+        }
+        
+        if (!ws.isAlive) {
+          console.log('Terminating inactive WebSocket connection');
+          ws.close(1000, 'Connection inactive');
+          return;
+        }
+        
+        ws.isAlive = false;
+        ws.lastPingTime = now;
+        ws.ping();
+      } catch (error) {
+        console.error('Error in WebSocket monitoring:', error);
+        clients.delete(ws);
       }
-      
-      if (!ws.isAlive) {
-        console.log('Terminating inactive WebSocket connection');
-        ws.close();
-        return;
-      }
-      
-      ws.isAlive = false;
-      ws.lastPingTime = now;
-      ws.ping();
     });
   }, WS_PING_INTERVAL);
 
@@ -121,7 +135,7 @@ function setupWebSocketServer(): WebSocketServer {
       console.log('Received pong from client, connection alive');
     });
 
-    ws.on('message', (message: RawData) => {
+    ws.on('message', (messageRaw: Data) => {
       try {
         const now = Date.now();
         ws.lastPingTime = now;
@@ -143,12 +157,30 @@ function setupWebSocketServer(): WebSocketServer {
           return;
         }
         
-        const messageData = message instanceof Buffer ? message : Buffer.from(message);
-        if (messageData.length > 1024 * 1024) {
+        // Safe conversion to string for any message type
+        let messageStr: string;
+        
+        if (typeof messageRaw === 'string') {
+          messageStr = messageRaw;
+        } else if (messageRaw instanceof Buffer) {
+          messageStr = messageRaw.toString('utf8');
+        } else if (messageRaw instanceof ArrayBuffer) {
+          messageStr = Buffer.from(messageRaw).toString('utf8');
+        } else if (Array.isArray(messageRaw)) {
+          // For array of buffers or array of strings
+          messageStr = Buffer.concat(
+            messageRaw.map(m => Buffer.isBuffer(m) ? m : Buffer.from(String(m)))
+          ).toString('utf8');
+        } else {
+          // Fallback for any other format
+          messageStr = String(messageRaw);
+        }
+        
+        if (messageStr.length > 1024 * 1024) {
           throw new Error('Message size exceeds limit');
         }
 
-        const data = JSON.parse(messageData.toString());
+        const data = JSON.parse(messageStr);
         
         if (!data.type || typeof data.type !== 'string') {
           throw new Error('Invalid message format: missing or invalid type');
