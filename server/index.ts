@@ -1,6 +1,7 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import { createServer } from "http";
 import { Socket } from "net";
+import { WebSocket as WS } from "ws";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 
@@ -105,6 +106,11 @@ async function startServer() {
       throw routesError;
     }
 
+    // Helper to access global WebSocket server
+    const get_ws_server = () => {
+      return (global as any).wss;
+    };
+
     // Set up WebSocket upgrade handling
     server.on('upgrade', (request, socket: Socket, head) => {
       // Check if the request is for our WebSocket endpoint
@@ -128,13 +134,23 @@ async function startServer() {
         });
 
         try {
-          wss.handleUpgrade(request, socket, head, (ws) => {
+          // Get WebSocket server from global context
+          const wss = get_ws_server();
+          
+          if (!wss) {
+            log('WebSocket server not initialized');
+            socket.end('HTTP/1.1 503 Service Unavailable\r\n\r\n');
+            socket.destroy();
+            return;
+          }
+          
+          wss.handleUpgrade(request, socket, head, (ws: WS) => {
             const wsConnectionId = Math.random().toString(36).substring(2, 9);
             const startTime = Date.now();
             
             log(`New WebSocket connection - ID: ${wsConnectionId}, StartTime: ${startTime}`);
             
-            ws.on('error', (wsError) => {
+            ws.on('error', (wsError: Error) => {
               log(`WebSocket error on connection ${wsConnectionId}: ${wsError.message}`);
               log(`Connection duration: ${Date.now() - startTime}ms`);
             });

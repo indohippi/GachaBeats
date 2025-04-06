@@ -72,10 +72,16 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
 
     try {
       state.connectionState = 'connecting';
+      // Make sure the URL matches the server's expected path exactly
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const url = `${protocol}//${window.location.host}/ws`;
+      
+      // Build a full URL with the explicit ws endpoint
+      const baseUrl = `${protocol}//${window.location.host}`;
+      const url = `${baseUrl}/ws`;
+      
       console.log(`Attempting WebSocket connection to ${url}`);
       
+      // Create a new WebSocket with the specified URL
       ws = new WebSocket(url);
       ws.binaryType = 'arraybuffer';
 

@@ -4,16 +4,82 @@ import * as Tone from 'tone';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 
+// Gameboy-inspired sound scales
+const GBA_SCALES = {
+  C_MAJOR: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'],
+  PENTATONIC: ['C4', 'D4', 'F4', 'G4', 'A4', 'C5'],
+  BLUES: ['C4', 'Eb4', 'F4', 'Gb4', 'G4', 'Bb4', 'C5']
+};
+
 // Track initialization state
 let initialized = false;
-let synth: Tone.PolySynth;
+let mainSynth: Tone.PolySynth;
+let transport: typeof Tone.Transport;
+let effects = {
+  reverb: null as Tone.Reverb | null,
+  delay: null as Tone.FeedbackDelay | null,
+  distortion: null as Tone.Distortion | null,
+  bitcrusher: null as Tone.BitCrusher | null,
+  compressor: null as Tone.Compressor | null,
+  masterGain: null as Tone.Gain | null
+};
 
-interface SamplePlayer {
-  synth: Tone.Synth | Tone.NoiseSynth | Tone.MetalSynth | Tone.MembraneSynth;
-  type: 'basic' | 'noise' | 'metal' | 'membrane';
+// Define more specific synth types to handle proper method typing
+interface MembraneSynthPlayer {
+  synth: Tone.MembraneSynth;
+  type: 'membrane';
+  gain?: Tone.Gain;
 }
 
-const samplePlayers = new Map<string, SamplePlayer>();
+interface NoiseSynthPlayer {
+  synth: Tone.NoiseSynth;
+  type: 'noise';
+  gain?: Tone.Gain;
+}
+
+interface MetalSynthPlayer {
+  synth: Tone.MetalSynth;
+  type: 'metal';
+  gain?: Tone.Gain;
+}
+
+interface BasicSynthPlayer {
+  synth: Tone.Synth;
+  type: 'basic';
+  gain?: Tone.Gain;
+}
+
+interface SamplePlayer {
+  synth: Tone.Player;
+  type: 'player';
+  gain?: Tone.Gain;
+}
+
+// Union type for all player types
+type AnyPlayer = MembraneSynthPlayer | NoiseSynthPlayer | MetalSynthPlayer | BasicSynthPlayer | SamplePlayer;
+
+interface SoundLibrary {
+  [key: string]: {
+    note: string;
+    duration: string;
+    type: 'basic' | 'noise' | 'metal' | 'membrane' | 'player';
+  }
+}
+
+// Game Boy Advance-inspired sound library
+const GBA_SOUNDS: SoundLibrary = {
+  'kick': { note: 'C1', duration: '8n', type: 'membrane' },
+  'snare': { note: '', duration: '8n', type: 'noise' },
+  'hihat': { note: 'C4', duration: '32n', type: 'metal' },
+  'lead': { note: 'C4', duration: '8n', type: 'basic' },
+  'bass': { note: 'C2', duration: '8n', type: 'basic' },
+  'blip': { note: 'G5', duration: '32n', type: 'basic' },
+  'coin': { note: 'E6', duration: '16n', type: 'metal' },
+  'jump': { note: 'G4', duration: '16n', type: 'membrane' }
+};
+
+const samplePlayers = new Map<string, AnyPlayer>();
+const soundBuffers = new Map<string, AudioBuffer>();
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -33,6 +99,8 @@ async function initializeToneWithRetry(retries = MAX_RETRIES): Promise<void> {
     console.log('Attempting to start Tone.js audio context...');
     await Tone.start();
     console.log('Tone.js context started successfully');
+    transport = Tone.Transport;
+    transport.bpm.value = 120;
   } catch (error) {
     console.error(`Failed to start Tone.js (attempt ${MAX_RETRIES - retries + 1}/${MAX_RETRIES}):`, error);
     if (retries > 1) {
@@ -56,8 +124,33 @@ export const initAudioEngine = async () => {
     await initializeToneWithRetry();
     
     try {
+      console.log('[AudioEngine] Setting up effects chain...');
+      // Create effects
+      effects.reverb = new Tone.Reverb(1.2).toDestination();
+      effects.delay = new Tone.FeedbackDelay(0.125, 0.2).connect(effects.reverb);
+      effects.distortion = new Tone.Distortion(0.4).connect(effects.delay);
+      effects.bitcrusher = new Tone.BitCrusher(8).connect(effects.distortion);
+      effects.compressor = new Tone.Compressor(-30, 3).connect(effects.bitcrusher);
+      effects.masterGain = new Tone.Gain(0.8).connect(effects.compressor);
+      await effects.reverb.generate();
+    } catch (error) {
+      console.error('[AudioEngine] Effects chain initialization failed:', error);
+    }
+    
+    try {
       console.log('[AudioEngine] Creating main synthesizer...');
-      synth = new Tone.PolySynth(Tone.Synth).toDestination();
+      // GBA-style synth (more 8-bit sounding)
+      mainSynth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: {
+          type: 'square'
+        },
+        envelope: {
+          attack: 0.02,
+          decay: 0.1,
+          sustain: 0.3,
+          release: 0.8
+        }
+      }).connect(effects.masterGain as Tone.Gain);
       console.log('[AudioEngine] Main synthesizer initialized successfully');
     } catch (error) {
       console.error('[AudioEngine] PolySynth initialization failed:', error);
@@ -68,17 +161,87 @@ export const initAudioEngine = async () => {
       console.log('[AudioEngine] Creating default synthesizers...');
       const startTime = performance.now();
       
+      // Kick drum with Game Boy characteristics
       console.log('[AudioEngine] Creating kick synth...');
-      const kickSynth = new Tone.MembraneSynth().toDestination();
+      const kickSynth = new Tone.MembraneSynth({
+        pitchDecay: 0.05,
+        octaves: 4,
+        oscillator: {
+          type: 'sine'
+        },
+        envelope: {
+          attack: 0.001,
+          decay: 0.2,
+          sustain: 0.01,
+          release: 0.2,
+          attackCurve: 'exponential'
+        }
+      }).connect(effects.masterGain as Tone.Gain);
       samplePlayers.set('kick', { synth: kickSynth, type: 'membrane' });
       
+      // Snare with Game Boy characteristics
       console.log('[AudioEngine] Creating snare synth...');
-      const snareSynth = new Tone.NoiseSynth().toDestination();
-      samplePlayers.set('snare', { synth: snareSynth, type: 'noise' });
+      const snareGain = new Tone.Gain(0.7).connect(effects.masterGain as Tone.Gain);
+      const snareSynth = new Tone.NoiseSynth({
+        noise: {
+          type: 'white',
+          playbackRate: 3,
+        },
+        envelope: {
+          attack: 0.001,
+          decay: 0.15,
+          sustain: 0,
+          release: 0.05
+        }
+      }).connect(snareGain);
+      samplePlayers.set('snare', { synth: snareSynth, type: 'noise', gain: snareGain });
       
+      // Hi-hat with Game Boy characteristics
       console.log('[AudioEngine] Creating hihat synth...');
-      const hihatSynth = new Tone.MetalSynth().toDestination();
-      samplePlayers.set('hihat', { synth: hihatSynth, type: 'metal' });
+      const hihatGain = new Tone.Gain(0.4).connect(effects.masterGain as Tone.Gain);
+      const hihatSynth = new Tone.MetalSynth({
+        envelope: {
+          attack: 0.001,
+          decay: 0.05,
+          release: 0.05
+        },
+        harmonicity: 5.1,
+        modulationIndex: 32,
+        octaves: 1.5
+      }).connect(hihatGain);
+      samplePlayers.set('hihat', { synth: hihatSynth, type: 'metal', gain: hihatGain });
+      
+      // Bass with Game Boy characteristics
+      console.log('[AudioEngine] Creating bass synth...');
+      const bassSynth = new Tone.Synth({
+        oscillator: {
+          type: 'square'
+        },
+        envelope: {
+          attack: 0.05,
+          decay: 0.2,
+          sustain: 0.4,
+          release: 0.8
+        }
+      }).connect(effects.masterGain as Tone.Gain);
+      samplePlayers.set('bass', { synth: bassSynth, type: 'basic' });
+      
+      // Blip sound
+      console.log('[AudioEngine] Creating blip synth...');
+      const blipGain = new Tone.Gain(0.5).connect(effects.masterGain as Tone.Gain);
+      const blipSynth = new Tone.Synth({
+        oscillator: {
+          type: 'pulse',
+          width: 0.2
+        },
+        envelope: {
+          attack: 0.001,
+          decay: 0.1,
+          sustain: 0,
+          release: 0.05
+        }
+      }).connect(blipGain);
+      samplePlayers.set('blip', { synth: blipSynth, type: 'basic', gain: blipGain });
       
       const initTime = performance.now() - startTime;
       console.log(`[AudioEngine] Default synthesizers created successfully in ${initTime.toFixed(2)}ms`);
@@ -95,12 +258,15 @@ export const initAudioEngine = async () => {
   }
 };
 
-export const playNote = (frequency: number) => {
+export const playNote = (note: string | number) => {
   try {
     checkAudioContext();
-    synth?.triggerAttackRelease(frequency, "8n");
+    // If a frequency is passed, convert it to appropriate note duration
+    const noteValue = typeof note === 'number' ? note : note;
+    const duration = '8n';
+    mainSynth?.triggerAttackRelease(noteValue, duration);
   } catch (error) {
-    console.error(`Failed to play note at frequency ${frequency}:`, error);
+    console.error(`Failed to play note ${note}:`, error);
     throw error;
   }
 };
@@ -108,7 +274,7 @@ export const playNote = (frequency: number) => {
 export const stopNote = () => {
   try {
     checkAudioContext();
-    synth?.releaseAll();
+    mainSynth?.releaseAll();
   } catch (error) {
     console.error('Failed to stop note:', error);
     throw error;
@@ -118,23 +284,56 @@ export const stopNote = () => {
 export const playSample = (name: string) => {
   try {
     checkAudioContext();
+    
+    // Get sound configuration
+    const sound = GBA_SOUNDS[name] || GBA_SOUNDS['blip'];
+    
+    // Define a safe function to play sounds with proper type checking
+    const playSoundWithType = (type: string, instrumentName: string) => {
+      const instrument = samplePlayers.get(instrumentName);
+      if (!instrument) return;
+      
+      if (type === 'membrane') {
+        // It's safe to cast when we know the exact type
+        (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration);
+      } 
+      else if (type === 'noise') {
+        (instrument.synth as any).triggerAttackRelease(sound.duration);
+      } 
+      else if (type === 'metal') {
+        (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration);
+      } 
+      else if (type === 'player') {
+        (instrument.synth as any).start();
+      }
+      else {
+        // Default for basic synths
+        (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration);
+      }
+    };
+    
+    // First, try to get the exact instrument by name
     const player = samplePlayers.get(name);
-    if (!player) {
-      throw new Error(`Sample '${name}' not found`);
-    }
-
-    switch (player.type) {
-      case 'membrane':
-        (player.synth as Tone.MembraneSynth).triggerAttackRelease('C1', '8n');
-        break;
-      case 'noise':
-        (player.synth as Tone.NoiseSynth).triggerAttackRelease('8n');
-        break;
-      case 'metal':
-        (player.synth as Tone.MetalSynth).triggerAttackRelease('C4', '32n');
-        break;
-      default:
-        (player.synth as Tone.Synth).triggerAttackRelease('C4', '8n');
+    
+    // If we have the named instrument, play it with its own type
+    if (player) {
+      playSoundWithType(player.type, name);
+    } 
+    // Otherwise, use a fallback based on the requested sound type
+    else {
+      switch (sound.type) {
+        case 'membrane':
+          playSoundWithType('membrane', 'kick');
+          break;
+        case 'noise':
+          playSoundWithType('noise', 'snare');
+          break;
+        case 'metal':
+          playSoundWithType('metal', 'hihat');
+          break;
+        default:
+          playSoundWithType('basic', 'blip');
+      }
     }
   } catch (error) {
     console.error(`Failed to play sample '${name}':`, error);
@@ -145,10 +344,101 @@ export const playSample = (name: string) => {
 export const loadSample = async (name: string, url: string) => {
   try {
     checkAudioContext();
-    // This will be implemented when we add the gacha system
-    console.log(`Loading sample ${name} from ${url} - Not implemented yet`);
+    console.log(`Loading sample ${name} from ${url}`);
+    
+    // Check if we already have this buffer loaded
+    if (soundBuffers.has(name)) {
+      console.log(`Sample ${name} already loaded, skipping`);
+      return;
+    }
+    
+    // Create a new player
+    const player = new Tone.Player({
+      url: url,
+      onload: () => {
+        console.log(`Sample ${name} loaded successfully`);
+      }
+    }).connect(effects.masterGain as Tone.Gain);
+    
+    // Add to our collections
+    samplePlayers.set(name, { synth: player, type: 'player' });
+    
+    // Wait for the buffer to load
+    await player.loaded;
+    
   } catch (error) {
     console.error(`Failed to load sample '${name}' from '${url}':`, error);
     throw error;
+  }
+};
+
+// New methods for Tone.Transport synchronization
+export const getTransport = () => {
+  checkAudioContext();
+  return transport;
+};
+
+export const setBPM = (bpm: number) => {
+  checkAudioContext();
+  transport.bpm.value = bpm;
+};
+
+export const startTransport = () => {
+  checkAudioContext();
+  transport.start();
+};
+
+export const stopTransport = () => {
+  checkAudioContext();
+  transport.stop();
+};
+
+export const scheduleRepeat = (callback: () => void, interval: string) => {
+  checkAudioContext();
+  return transport.scheduleRepeat(callback, interval);
+};
+
+export const clearRepeat = (id: number) => {
+  checkAudioContext();
+  transport.clear(id);
+};
+
+// Get a note from the GBA scales
+export const getNoteFromScale = (index: number, scale: keyof typeof GBA_SCALES = 'C_MAJOR') => {
+  const selectedScale = GBA_SCALES[scale];
+  return selectedScale[index % selectedScale.length];
+};
+
+// Effects controls
+export const setReverbAmount = (amount: number) => {
+  if (effects.reverb) {
+    effects.reverb.wet.value = Math.max(0, Math.min(1, amount));
+  }
+};
+
+export const setDelayAmount = (amount: number) => {
+  if (effects.delay) {
+    effects.delay.wet.value = Math.max(0, Math.min(1, amount));
+  }
+};
+
+export const setDistortionAmount = (amount: number) => {
+  if (effects.distortion) {
+    effects.distortion.wet.value = Math.max(0, Math.min(1, amount));
+  }
+};
+
+export const setBitCrusherAmount = (amount: number) => {
+  if (effects.bitcrusher) {
+    // Scale from 0-1 to 16-1 (higher bit reduction = more lo-fi)
+    // Note: We can't set bits directly as it's a read-only property,
+    // so we adjust the wet level instead
+    effects.bitcrusher.wet.value = Math.max(0, Math.min(1, amount));
+  }
+};
+
+export const setMasterVolume = (amount: number) => {
+  if (effects.masterGain) {
+    effects.masterGain.gain.value = Math.max(0, Math.min(1, amount));
   }
 };

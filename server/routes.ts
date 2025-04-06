@@ -66,10 +66,17 @@ function setupSessionStore() {
 function setupWebSocketServer(): WebSocketServer {
   console.log('Initializing WebSocket server...');
   // Use path-based WebSocket server for more reliable connections
-  const wss = new WebSocketServer({ 
+  // Create WebSocket server and export it as a variable that can be accessed
+  // directly from server/index.ts
+  const wssInstance = new WebSocketServer({ 
     noServer: true,
-    path: '/ws'
+    path: '/ws' 
   });
+  
+  // Make it available globally
+  (global as any).wss = wssInstance;
+  
+  const wss = wssInstance;
   const clients = new Set<ExtendedWebSocket>();
   
   const monitoringInterval = setInterval(() => {
@@ -111,7 +118,7 @@ function setupWebSocketServer(): WebSocketServer {
     clients.clear();
   });
 
-  wss.on('error', (error) => {
+  wss.on('error', (error: Error) => {
     console.error('WebSocket server error:', error);
   });
 
