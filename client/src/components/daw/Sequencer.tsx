@@ -18,19 +18,34 @@ import {
   setDelayAmount,
   setDistortionAmount,
   setBitCrusherAmount,
+  setPhaserAmount,
+  setChorusAmount,
+  setTremoloAmount,
+  setAutoWahAmount,
+  setFilterFrequency,
+  setFilterType,
   getNoteFromScale
 } from './AudioEngine';
 
 const STEPS = 16;
-const TRACKS = 4;
-const TRACK_SOUNDS = ['kick', 'snare', 'hihat', 'blip'];
+const TRACKS = 8;
+const TRACK_SOUNDS = [
+  // Drum tracks
+  'kick', 'snare', 'hihat', 'rim', 'clap',
+  // Melodic tracks
+  'bass', 'pluck', 'pad'
+];
 
-// Gameboy-style colors
+// Gameboy-style colors with expanded palette
 const GBA_COLORS = [
   '#8bac0f', // Green
   '#9bbc0f', // Light Green
   '#306230', // Dark Green
-  '#0f380f'  // Darkest Green
+  '#0f380f', // Darkest Green
+  '#0f5f0f', // Medium Green
+  '#71aa34', // Olive Green  
+  '#4d8f43', // Forest Green
+  '#5a3921'  // Brown
 ];
 
 export default function Sequencer() {
@@ -45,6 +60,12 @@ export default function Sequencer() {
   const [delayAmount, setDelayAmountState] = useState(0.2);
   const [distortionAmount, setDistortionAmountState] = useState(0.1);
   const [bitCrushAmount, setBitCrushAmountState] = useState(0.4);
+  const [phaserAmount, setPhaserAmountState] = useState(0);
+  const [chorusAmount, setChorusAmountState] = useState(0);
+  const [tremoloAmount, setTremoloAmountState] = useState(0);
+  const [autoWahAmount, setAutoWahAmountState] = useState(0);
+  const [filterFrequency, setFilterFrequencyState] = useState(0.5);
+  const [filterType, setFilterTypeState] = useState<'lowpass' | 'highpass' | 'bandpass'>('lowpass');
   
   // Initialize sequence with proper immutable structure
   const [sequence, setSequence] = useState<boolean[][]>(() => 
@@ -114,7 +135,24 @@ export default function Sequencer() {
     setDelayAmount(delayAmount);
     setDistortionAmount(distortionAmount);
     setBitCrusherAmount(bitCrushAmount);
-  }, [reverbAmount, delayAmount, distortionAmount, bitCrushAmount]);
+    setPhaserAmount(phaserAmount);
+    setChorusAmount(chorusAmount);
+    setTremoloAmount(tremoloAmount);
+    setAutoWahAmount(autoWahAmount);
+    setFilterFrequency(filterFrequency);
+    setFilterType(filterType);
+  }, [
+    reverbAmount, 
+    delayAmount, 
+    distortionAmount, 
+    bitCrushAmount,
+    phaserAmount,
+    chorusAmount,
+    tremoloAmount,
+    autoWahAmount,
+    filterFrequency,
+    filterType
+  ]);
 
   // Toggle step state
   const toggleStep = useCallback((trackIndex: number, stepIndex: number) => {
@@ -164,11 +202,31 @@ export default function Sequencer() {
       demoPattern[2][i] = true;
     }
     
-    // Blip with a simple melody
+    // Rim on selective beats
     demoPattern[3][2] = true;
-    demoPattern[3][6] = true;
     demoPattern[3][10] = true;
-    demoPattern[3][14] = true;
+    
+    // Clap on selective beats
+    demoPattern[4][4] = true;
+    demoPattern[4][12] = true;
+    
+    // Bass with a simple pattern
+    demoPattern[5][0] = true;
+    demoPattern[5][7] = true;
+    demoPattern[5][8] = true;
+    demoPattern[5][15] = true;
+    
+    // Pluck with melody line
+    demoPattern[6][2] = true;
+    demoPattern[6][6] = true;
+    demoPattern[6][10] = true;
+    demoPattern[6][14] = true;
+    
+    // Pad on every 4th beat
+    demoPattern[7][0] = true;
+    demoPattern[7][4] = true;
+    demoPattern[7][8] = true;
+    demoPattern[7][12] = true;
     
     setSequence(demoPattern);
   }, []);
@@ -250,88 +308,208 @@ export default function Sequencer() {
         
         <TabsContent value="effects" className="p-2 bg-[--gba-dark] rounded-md">
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label htmlFor="reverb" className="text-[--gba-lightest]">Reverb</Label>
-                  <span className="text-xs text-[--gba-lightest]">
-                    {Math.round(reverbAmount * 100)}%
-                  </span>
-                </div>
-                <Slider
-                  id="reverb"
-                  value={[reverbAmount * 100]}
-                  min={0}
-                  max={100}
-                  step={1}
-                  onValueChange={([value]) => setReverbAmountState(value / 100)}
-                />
-              </div>
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4 bg-[--gba-darker]">
+                <TabsTrigger value="basic" className="text-[--gba-lightest]">Basic Effects</TabsTrigger>
+                <TabsTrigger value="advanced" className="text-[--gba-lightest]">Advanced Effects</TabsTrigger>
+              </TabsList>
               
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label htmlFor="delay" className="text-[--gba-lightest]">Delay</Label>
-                  <span className="text-xs text-[--gba-lightest]">
-                    {Math.round(delayAmount * 100)}%
-                  </span>
+              <TabsContent value="basic" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="reverb" className="text-[--gba-lightest]">Reverb</Label>
+                      <span className="text-xs text-[--gba-lightest]">
+                        {Math.round(reverbAmount * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      id="reverb"
+                      value={[reverbAmount * 100]}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onValueChange={([value]) => setReverbAmountState(value / 100)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="delay" className="text-[--gba-lightest]">Delay</Label>
+                      <span className="text-xs text-[--gba-lightest]">
+                        {Math.round(delayAmount * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      id="delay"
+                      value={[delayAmount * 100]}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onValueChange={([value]) => setDelayAmountState(value / 100)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="distortion" className="text-[--gba-lightest]">Distortion</Label>
+                      <span className="text-xs text-[--gba-lightest]">
+                        {Math.round(distortionAmount * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      id="distortion"
+                      value={[distortionAmount * 100]}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onValueChange={([value]) => setDistortionAmountState(value / 100)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="bitcrush" className="text-[--gba-lightest]">Bit Crush</Label>
+                      <span className="text-xs text-[--gba-lightest]">
+                        {Math.round(bitCrushAmount * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      id="bitcrush"
+                      value={[bitCrushAmount * 100]}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onValueChange={([value]) => setBitCrushAmountState(value / 100)}
+                    />
+                  </div>
                 </div>
-                <Slider
-                  id="delay"
-                  value={[delayAmount * 100]}
-                  min={0}
-                  max={100}
-                  step={1}
-                  onValueChange={([value]) => setDelayAmountState(value / 100)}
-                />
-              </div>
+              </TabsContent>
               
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label htmlFor="distortion" className="text-[--gba-lightest]">Distortion</Label>
-                  <span className="text-xs text-[--gba-lightest]">
-                    {Math.round(distortionAmount * 100)}%
-                  </span>
+              <TabsContent value="advanced" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="phaser" className="text-[--gba-lightest]">Phaser</Label>
+                      <span className="text-xs text-[--gba-lightest]">
+                        {Math.round(phaserAmount * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      id="phaser"
+                      value={[phaserAmount * 100]}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onValueChange={([value]) => setPhaserAmountState(value / 100)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="chorus" className="text-[--gba-lightest]">Chorus</Label>
+                      <span className="text-xs text-[--gba-lightest]">
+                        {Math.round(chorusAmount * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      id="chorus"
+                      value={[chorusAmount * 100]}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onValueChange={([value]) => setChorusAmountState(value / 100)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="tremolo" className="text-[--gba-lightest]">Tremolo</Label>
+                      <span className="text-xs text-[--gba-lightest]">
+                        {Math.round(tremoloAmount * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      id="tremolo"
+                      value={[tremoloAmount * 100]}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onValueChange={([value]) => setTremoloAmountState(value / 100)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="autowah" className="text-[--gba-lightest]">Auto Wah</Label>
+                      <span className="text-xs text-[--gba-lightest]">
+                        {Math.round(autoWahAmount * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      id="autowah"
+                      value={[autoWahAmount * 100]}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onValueChange={([value]) => setAutoWahAmountState(value / 100)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="filter" className="text-[--gba-lightest]">Filter Freq</Label>
+                      <span className="text-xs text-[--gba-lightest]">
+                        {Math.round(filterFrequency * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      id="filter"
+                      value={[filterFrequency * 100]}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onValueChange={([value]) => setFilterFrequencyState(value / 100)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="filterType" className="text-[--gba-lightest]">Filter Type</Label>
+                      <select
+                        id="filterType"
+                        className="gba-select text-xs bg-[--gba-dark] text-[--gba-lightest] border border-[--gba-light] p-1 rounded-md"
+                        value={filterType}
+                        onChange={(e) => setFilterTypeState(e.target.value as any)}
+                      >
+                        <option value="lowpass">Low Pass</option>
+                        <option value="highpass">High Pass</option>
+                        <option value="bandpass">Band Pass</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <Slider
-                  id="distortion"
-                  value={[distortionAmount * 100]}
-                  min={0}
-                  max={100}
-                  step={1}
-                  onValueChange={([value]) => setDistortionAmountState(value / 100)}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label htmlFor="bitcrush" className="text-[--gba-lightest]">Bit Crush</Label>
-                  <span className="text-xs text-[--gba-lightest]">
-                    {Math.round(bitCrushAmount * 100)}%
-                  </span>
-                </div>
-                <Slider
-                  id="bitcrush"
-                  value={[bitCrushAmount * 100]}
-                  min={0}
-                  max={100}
-                  step={1}
-                  onValueChange={([value]) => setBitCrushAmountState(value / 100)}
-                />
-              </div>
-            </div>
+              </TabsContent>
+            </Tabs>
             
             <div className="flex justify-center mt-4">
               <Button
                 className="gba-button"
                 onClick={() => {
-                  // Reset effects to default
+                  // Reset all effects to default
                   setReverbAmountState(0.3);
                   setDelayAmountState(0.2);
                   setDistortionAmountState(0.1);
                   setBitCrushAmountState(0.4);
+                  setPhaserAmountState(0);
+                  setChorusAmountState(0);
+                  setTremoloAmountState(0);
+                  setAutoWahAmountState(0);
+                  setFilterFrequencyState(0.5);
+                  setFilterTypeState('lowpass');
                 }}
               >
-                Reset Effects
+                Reset All Effects
               </Button>
             </div>
           </div>

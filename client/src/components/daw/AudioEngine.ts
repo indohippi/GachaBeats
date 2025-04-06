@@ -21,6 +21,11 @@ let effects = {
   distortion: null as Tone.Distortion | null,
   bitcrusher: null as Tone.BitCrusher | null,
   compressor: null as Tone.Compressor | null,
+  phaser: null as Tone.Phaser | null, 
+  tremolo: null as Tone.Tremolo | null,
+  autoWah: null as Tone.AutoWah | null,
+  filter: null as Tone.Filter | null,
+  chorus: null as Tone.Chorus | null,
   masterGain: null as Tone.Gain | null
 };
 
@@ -68,14 +73,26 @@ interface SoundLibrary {
 
 // Game Boy Advance-inspired sound library
 const GBA_SOUNDS: SoundLibrary = {
+  // Percussion
   'kick': { note: 'C1', duration: '8n', type: 'membrane' },
   'snare': { note: '', duration: '8n', type: 'noise' },
   'hihat': { note: 'C4', duration: '32n', type: 'metal' },
+  'rim': { note: 'A4', duration: '32n', type: 'metal' },
+  'clap': { note: '', duration: '16n', type: 'noise' },
+  
+  // Melodic
   'lead': { note: 'C4', duration: '8n', type: 'basic' },
   'bass': { note: 'C2', duration: '8n', type: 'basic' },
+  'pad': { note: 'C3', duration: '2n', type: 'basic' },
+  'pluck': { note: 'C4', duration: '8n', type: 'basic' },
+  'arp': { note: 'C5', duration: '16n', type: 'basic' },
+  
+  // SFX
   'blip': { note: 'G5', duration: '32n', type: 'basic' },
   'coin': { note: 'E6', duration: '16n', type: 'metal' },
-  'jump': { note: 'G4', duration: '16n', type: 'membrane' }
+  'jump': { note: 'G4', duration: '16n', type: 'membrane' },
+  'powerup': { note: 'C5', duration: '8n', type: 'basic' },
+  'laser': { note: 'C6', duration: '32n', type: 'noise' }
 };
 
 const samplePlayers = new Map<string, AnyPlayer>();
@@ -125,14 +142,36 @@ export const initAudioEngine = async () => {
     
     try {
       console.log('[AudioEngine] Setting up effects chain...');
-      // Create effects
+      // Create effects chain from destination backward
       effects.reverb = new Tone.Reverb(1.2).toDestination();
       effects.delay = new Tone.FeedbackDelay(0.125, 0.2).connect(effects.reverb);
-      effects.distortion = new Tone.Distortion(0.4).connect(effects.delay);
+      effects.chorus = new Tone.Chorus(4, 2.5, 0.5).connect(effects.delay);
+      effects.phaser = new Tone.Phaser({
+        frequency: 0.5,
+        octaves: 3,
+        baseFrequency: 1000
+      }).connect(effects.chorus);
+      effects.tremolo = new Tone.Tremolo(9, 0.75).connect(effects.phaser);
+      effects.autoWah = new Tone.AutoWah(50, 6, -30).connect(effects.tremolo);
+      effects.distortion = new Tone.Distortion(0.4).connect(effects.autoWah);
       effects.bitcrusher = new Tone.BitCrusher(8).connect(effects.distortion);
-      effects.compressor = new Tone.Compressor(-30, 3).connect(effects.bitcrusher);
+      effects.filter = new Tone.Filter(1000, "lowpass").connect(effects.bitcrusher);
+      effects.compressor = new Tone.Compressor(-30, 3).connect(effects.filter);
       effects.masterGain = new Tone.Gain(0.8).connect(effects.compressor);
+      
+      // Start any effects that need to be started
+      effects.tremolo.start();
+      
+      // Generate reverb impulse response
       await effects.reverb.generate();
+      
+      // Set default wet levels
+      effects.chorus.wet.value = 0;
+      effects.phaser.wet.value = 0;
+      effects.tremolo.wet.value = 0;
+      effects.autoWah.wet.value = 0; 
+      
+      console.log('[AudioEngine] Effects chain created successfully');
     } catch (error) {
       console.error('[AudioEngine] Effects chain initialization failed:', error);
     }
@@ -226,6 +265,88 @@ export const initAudioEngine = async () => {
       }).connect(effects.masterGain as Tone.Gain);
       samplePlayers.set('bass', { synth: bassSynth, type: 'basic' });
       
+      // Rim shot
+      console.log('[AudioEngine] Creating rim synth...');
+      const rimGain = new Tone.Gain(0.5).connect(effects.masterGain as Tone.Gain);
+      const rimSynth = new Tone.MetalSynth({
+        envelope: {
+          attack: 0.001,
+          decay: 0.02,
+          release: 0.02
+        },
+        harmonicity: 5.1,
+        modulationIndex: 40,
+        resonance: 1000,
+        octaves: 1.5
+      }).connect(rimGain);
+      samplePlayers.set('rim', { synth: rimSynth, type: 'metal', gain: rimGain });
+      
+      // Clap sound
+      console.log('[AudioEngine] Creating clap synth...');
+      const clapGain = new Tone.Gain(0.6).connect(effects.masterGain as Tone.Gain);
+      const clapSynth = new Tone.NoiseSynth({
+        noise: {
+          type: 'pink',
+          playbackRate: 3,
+        },
+        envelope: {
+          attack: 0.001,
+          decay: 0.15,
+          sustain: 0,
+          release: 0.1
+        }
+      }).connect(clapGain);
+      samplePlayers.set('clap', { synth: clapSynth, type: 'noise', gain: clapGain });
+      
+      // Pad sound
+      console.log('[AudioEngine] Creating pad synth...');
+      const padGain = new Tone.Gain(0.4).connect(effects.masterGain as Tone.Gain);
+      const padSynth = new Tone.Synth({
+        oscillator: {
+          type: 'square8'
+        },
+        envelope: {
+          attack: 0.5,
+          decay: 0.5,
+          sustain: 0.7,
+          release: 1.5
+        }
+      }).connect(padGain);
+      samplePlayers.set('pad', { synth: padSynth, type: 'basic', gain: padGain });
+      
+      // Pluck sound
+      console.log('[AudioEngine] Creating pluck synth...');
+      const pluckGain = new Tone.Gain(0.5).connect(effects.masterGain as Tone.Gain);
+      const pluckSynth = new Tone.Synth({
+        oscillator: {
+          type: 'triangle'
+        },
+        envelope: {
+          attack: 0.001,
+          decay: 0.1,
+          sustain: 0.1,
+          release: 0.2
+        }
+      }).connect(pluckGain);
+      samplePlayers.set('pluck', { synth: pluckSynth, type: 'basic', gain: pluckGain });
+      
+      // Arpeggiator sound
+      console.log('[AudioEngine] Creating arp synth...');
+      const arpGain = new Tone.Gain(0.5).connect(effects.masterGain as Tone.Gain);
+      const arpSynth = new Tone.Synth({
+        oscillator: {
+          type: 'pulse',
+          width: 0.5
+        },
+        envelope: {
+          attack: 0.001,
+          decay: 0.1,
+          sustain: 0.1,
+          release: 0.05
+        }
+      }).connect(arpGain);
+      samplePlayers.set('arp', { synth: arpSynth, type: 'basic', gain: arpGain });
+      
       // Blip sound
       console.log('[AudioEngine] Creating blip synth...');
       const blipGain = new Tone.Gain(0.5).connect(effects.masterGain as Tone.Gain);
@@ -242,6 +363,39 @@ export const initAudioEngine = async () => {
         }
       }).connect(blipGain);
       samplePlayers.set('blip', { synth: blipSynth, type: 'basic', gain: blipGain });
+      
+      // Laser sound
+      console.log('[AudioEngine] Creating laser synth...');
+      const laserGain = new Tone.Gain(0.4).connect(effects.masterGain as Tone.Gain);
+      const laserSynth = new Tone.NoiseSynth({
+        noise: {
+          type: 'white',
+          playbackRate: 5,
+        },
+        envelope: {
+          attack: 0.001,
+          decay: 0.1,
+          sustain: 0,
+          release: 0.01
+        }
+      }).connect(laserGain);
+      samplePlayers.set('laser', { synth: laserSynth, type: 'noise', gain: laserGain });
+      
+      // Power-up sound
+      console.log('[AudioEngine] Creating powerup synth...');
+      const powerupGain = new Tone.Gain(0.5).connect(effects.masterGain as Tone.Gain);
+      const powerupSynth = new Tone.Synth({
+        oscillator: {
+          type: 'sawtooth'
+        },
+        envelope: {
+          attack: 0.001,
+          decay: 0.3,
+          sustain: 0.2,
+          release: 0.2
+        }
+      }).connect(powerupGain);
+      samplePlayers.set('powerup', { synth: powerupSynth, type: 'basic', gain: powerupGain });
       
       const initTime = performance.now() - startTime;
       console.log(`[AudioEngine] Default synthesizers created successfully in ${initTime.toFixed(2)}ms`);
@@ -440,5 +594,44 @@ export const setBitCrusherAmount = (amount: number) => {
 export const setMasterVolume = (amount: number) => {
   if (effects.masterGain) {
     effects.masterGain.gain.value = Math.max(0, Math.min(1, amount));
+  }
+};
+
+// Additional effect controls for our new effects
+export const setPhaserAmount = (amount: number) => {
+  if (effects.phaser) {
+    effects.phaser.wet.value = Math.max(0, Math.min(1, amount));
+  }
+};
+
+export const setChorusAmount = (amount: number) => {
+  if (effects.chorus) {
+    effects.chorus.wet.value = Math.max(0, Math.min(1, amount));
+  }
+};
+
+export const setTremoloAmount = (amount: number) => {
+  if (effects.tremolo) {
+    effects.tremolo.wet.value = Math.max(0, Math.min(1, amount));
+  }
+};
+
+export const setAutoWahAmount = (amount: number) => {
+  if (effects.autoWah) {
+    effects.autoWah.wet.value = Math.max(0, Math.min(1, amount));
+  }
+};
+
+export const setFilterFrequency = (frequency: number) => {
+  if (effects.filter) {
+    // Scale from 0-1 to 100-8000 Hz
+    const scaledFreq = 100 + (frequency * 7900);
+    effects.filter.frequency.value = scaledFreq;
+  }
+};
+
+export const setFilterType = (type: 'lowpass' | 'highpass' | 'bandpass' | 'lowshelf' | 'highshelf') => {
+  if (effects.filter) {
+    effects.filter.type = type;
   }
 };
