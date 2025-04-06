@@ -1,3 +1,5 @@
+import { WebSocket } from 'ws';
+
 interface WebSocketHandlers {
   onConnect?: () => void;
   onDisconnect?: () => void;
@@ -11,26 +13,18 @@ interface WebSocketState {
   lastMessageTime: number;
   reconnectAttempts: number;
   maxReconnectAttempts: number;
+  connectionState: ConnectionState;
 }
-
-// WebSocket connection constants
-const INITIAL_RETRY_DELAY = 500; // 500ms initial delay
-const MAX_RETRY_DELAY = 30000; // 30 seconds maximum delay
-const HEARTBEAT_INTERVAL = 15000; // 15 seconds
-const JITTER_MAX = 0.1; // 10% maximum jitter factor
-const CONNECTION_TIMEOUT = 10000; // 10 seconds connection timeout
-const MAX_RECONNECT_ATTEMPTS = 5; // Maximum number of reconnection attempts
 
 // Connection states
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'failed';
 
-// Enhanced WebSocket state tracking
-interface EnhancedWebSocketState extends WebSocketState {
-  connectionState: ConnectionState;
-  lastError?: Error;
-  reconnectTimer?: NodeJS.Timeout;
-  heartbeatTimer?: NodeJS.Timeout;
-}
+// WebSocket connection constants
+const INITIAL_RETRY_DELAY = 1000; // 1 second initial delay
+const MAX_RETRY_DELAY = 30000; // 30 seconds maximum delay
+const HEARTBEAT_INTERVAL = 15000; // 15 seconds
+const CONNECTION_TIMEOUT = 10000; // 10 seconds connection timeout
+const JITTER_MAX = 0.1; // 10% maximum jitter factor
 
 export const setupWebSocket = (handlers: WebSocketHandlers) => {
   let ws: WebSocket | null = null;
@@ -41,7 +35,8 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
     isConnected: false,
     lastMessageTime: Date.now(),
     reconnectAttempts: 0,
-    maxReconnectAttempts: 5
+    maxReconnectAttempts: 5,
+    connectionState: 'disconnected'
   };
 
   const clearTimers = () => {
@@ -59,10 +54,11 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
     
     if (state.reconnectAttempts >= state.maxReconnectAttempts) {
       console.error('Max reconnection attempts reached');
+      state.connectionState = 'failed';
       handlers.onError?.('Max reconnection attempts reached');
       return;
     }
-    
+
     // Reset connection state
     if (ws) {
       try {
@@ -74,31 +70,32 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
     }
 
     try {
+      state.connectionState = 'connecting';
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const url = `${protocol}//${window.location.host}/ws`;
       console.log(`Attempting WebSocket connection to ${url}`);
       
-      // Create new WebSocket with timeout
       ws = new WebSocket(url);
+      ws.binaryType = 'arraybuffer';
+
       const connectionTimeout = setTimeout(() => {
         if (ws && ws.readyState !== WebSocket.OPEN) {
           console.log('WebSocket connection timeout, closing...');
           ws.close();
+          state.connectionState = 'disconnected';
           scheduleReconnect();
         }
       }, CONNECTION_TIMEOUT);
 
-      // Set binary type to arraybuffer for better performance
-      ws.binaryType = 'arraybuffer';
-      
-      // Clear timeout on successful connection
+      setupEventHandlers(ws);
+
       ws.addEventListener('open', () => {
         clearTimeout(connectionTimeout);
       }, { once: true });
 
-      setupEventHandlers(ws);
     } catch (error) {
       console.error('WebSocket connection error:', error);
+      state.connectionState = 'disconnected';
       scheduleReconnect();
     }
   };
@@ -107,11 +104,11 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
     socket.onopen = () => {
       console.log('WebSocket connection established');
       state.isConnected = true;
+      state.connectionState = 'connected';
       state.reconnectAttempts = 0;
       state.lastMessageTime = Date.now();
       handlers.onConnect?.();
 
-      // Setup heartbeat
       heartbeatInterval = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) {
           try {
@@ -124,9 +121,10 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
       }, HEARTBEAT_INTERVAL);
     };
 
-    socket.onclose = (event) => {
-      console.log(`WebSocket closed with code ${event.code}${event.reason ? ': ' + event.reason : ''}`);
+    socket.onclose = () => {
+      console.log('WebSocket connection closed');
       state.isConnected = false;
+      state.connectionState = 'disconnected';
       clearTimers();
       handlers.onDisconnect?.();
       scheduleReconnect();
@@ -142,7 +140,6 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
         state.lastMessageTime = Date.now();
         const data = JSON.parse(event.data);
         
-        // Handle special message types
         switch (data.type) {
           case 'connected':
             state.connectionId = data.connectionId;
@@ -162,15 +159,13 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
         console.error('Failed to process WebSocket message:', error);
         handlers.onError?.({
           type: 'message_error',
-          error: error instanceof Error ? error.message : 'Unknown error',
-          data: event.data
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     };
   };
 
   const scheduleReconnect = () => {
-    // Calculate base delay with exponential backoff
     const baseDelay = Math.min(
       INITIAL_RETRY_DELAY * Math.pow(2, state.reconnectAttempts),
       MAX_RETRY_DELAY
@@ -180,28 +175,19 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
     const jitter = baseDelay * JITTER_MAX * (Math.random() * 2 - 1);
     const retryDelay = Math.max(INITIAL_RETRY_DELAY, baseDelay + jitter);
 
-    console.log(`Scheduling reconnect attempt ${state.reconnectAttempts + 1} in ${retryDelay.toFixed(0)}ms (base: ${baseDelay}ms, jitter: ${jitter.toFixed(0)}ms)`);
+    console.log(`Scheduling reconnect attempt ${state.reconnectAttempts + 1} in ${retryDelay.toFixed(0)}ms`);
     
     reconnectTimeout = setTimeout(() => {
       state.reconnectAttempts++;
-      
-      // Attempt to recover previous connection state if available
-      const recoveryState = {
-        connectionId: state.connectionId,
-        lastMessageTime: state.lastMessageTime,
-        pendingMessages: [] // To be implemented: track unsent messages
-      };
-      
-      connect(recoveryState);
+      connect();
     }, retryDelay);
   };
 
   // Initial connection
   connect();
 
-  // Return cleanup function
   return {
-    disconnect: () => {
+    close: () => {
       clearTimers();
       if (ws) {
         ws.close();

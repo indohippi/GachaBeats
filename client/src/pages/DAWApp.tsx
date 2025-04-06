@@ -106,7 +106,7 @@ export default function DAWApp() {
       // Properly close WebSocket connection with retry
       if (wsRef.current) {
         try {
-          wsRef.current.disconnect();
+          wsRef.current.close();
           wsRef.current = null;
         } catch (error) {
           console.error('Error during WebSocket cleanup:', error);
