@@ -16,9 +16,17 @@ export default function GachaSystem() {
   const [pulling, setPulling] = useState(false);
   const { toast } = useToast();
 
-  const { data: collection } = useQuery<Sound[]>({
+  const { data: collection = [] } = useQuery<Sound[]>({
     queryKey: ['sounds'],
-    queryFn: () => fetch('/api/sounds').then(res => res.json()),
+    queryFn: async () => {
+      const response = await fetch('/api/sounds');
+      if (!response.ok) {
+        throw new Error('Failed to fetch sounds');
+      }
+      const data = await response.json();
+      // Ensure we always return an array
+      return Array.isArray(data) ? data : [];
+    },
   });
 
   const pullMutation = useMutation({

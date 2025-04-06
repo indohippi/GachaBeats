@@ -18,13 +18,13 @@ export default function DAWApp() {
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const { toast } = useToast();
-  const wsRef = useRef<WebSocket | null>(null);
+  const wsRef = useRef<ReturnType<typeof setupWebSocket> | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
 
-  const connect = useCallback(() => {
+  const connect = useCallback((): ReturnType<typeof setupWebSocket> => {
     console.log(`Attempting WebSocket connection (attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
     
-    const ws = setupWebSocket({
+    return setupWebSocket({
       onConnect: () => {
         console.log('WebSocket connected successfully');
         setConnected(true);
@@ -70,7 +70,7 @@ export default function DAWApp() {
 
   useEffect(() => {
     let isCleanedUp = false;
-    let wsConnection: { close: () => void } | null = null;
+    let wsConnection: ReturnType<typeof setupWebSocket> | null = null;
     
     console.log('Initializing WebSocket connection...');
     
@@ -82,7 +82,7 @@ export default function DAWApp() {
       };
     }
     
-    const initConnection = async () => {
+    const initConnection = () => {
       try {
         if (!isCleanedUp) {
           console.log('Creating new WebSocket connection');
@@ -165,7 +165,7 @@ export default function DAWApp() {
       
       // Log additional debug information
       console.debug('[DAWApp] Audio initialization debug info:', {
-        browserAudioContext: window.AudioContext || window.webkitAudioContext,
+        browserAudioContext: window.AudioContext,
         userAgent: navigator.userAgent,
         error: err
       });
