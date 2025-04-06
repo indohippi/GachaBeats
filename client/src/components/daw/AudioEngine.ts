@@ -412,13 +412,20 @@ export const initAudioEngine = async () => {
   }
 };
 
-export const playNote = (note: string | number) => {
+export const playNote = (note: string | number, time?: number) => {
   try {
     checkAudioContext();
     // If a frequency is passed, convert it to appropriate note duration
     const noteValue = typeof note === 'number' ? note : note;
     const duration = '8n';
-    mainSynth?.triggerAttackRelease(noteValue, duration);
+    
+    if (time !== undefined) {
+      // Use the scheduled time for precise timing
+      mainSynth?.triggerAttackRelease(noteValue, duration, time);
+    } else {
+      // For immediate playback
+      mainSynth?.triggerAttackRelease(noteValue, duration);
+    }
   } catch (error) {
     console.error(`Failed to play note ${note}:`, error);
     throw error;
@@ -435,7 +442,7 @@ export const stopNote = () => {
   }
 };
 
-export const playSample = (name: string) => {
+export const playSample = (name: string, time?: number) => {
   try {
     checkAudioContext();
     
@@ -449,20 +456,40 @@ export const playSample = (name: string) => {
       
       if (type === 'membrane') {
         // It's safe to cast when we know the exact type
-        (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration);
+        if (time !== undefined) {
+          (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration, time);
+        } else {
+          (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration);
+        }
       } 
       else if (type === 'noise') {
-        (instrument.synth as any).triggerAttackRelease(sound.duration);
+        if (time !== undefined) {
+          (instrument.synth as any).triggerAttackRelease(sound.duration, time);
+        } else {
+          (instrument.synth as any).triggerAttackRelease(sound.duration);
+        }
       } 
       else if (type === 'metal') {
-        (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration);
+        if (time !== undefined) {
+          (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration, time);
+        } else {
+          (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration);
+        }
       } 
       else if (type === 'player') {
-        (instrument.synth as any).start();
+        if (time !== undefined) {
+          (instrument.synth as any).start(time);
+        } else {
+          (instrument.synth as any).start();
+        }
       }
       else {
         // Default for basic synths
-        (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration);
+        if (time !== undefined) {
+          (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration, time);
+        } else {
+          (instrument.synth as any).triggerAttackRelease(sound.note, sound.duration);
+        }
       }
     };
     
@@ -547,9 +574,12 @@ export const stopTransport = () => {
   transport.stop();
 };
 
-export const scheduleRepeat = (callback: () => void, interval: string) => {
+export const scheduleRepeat = (callback: (time: number) => void, interval: string) => {
   checkAudioContext();
-  return transport.scheduleRepeat(callback, interval);
+  // Pass the exact scheduled time to the callback for accurate scheduling
+  return transport.scheduleRepeat((time) => {
+    callback(time);
+  }, interval);
 };
 
 export const clearRepeat = (id: number) => {

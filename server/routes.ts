@@ -197,6 +197,78 @@ function setupWebSocketServer(): WebSocketServer {
           case 'ping':
             ws.send(JSON.stringify({ type: 'pong' }));
             break;
+          
+          // Handle DAW sequencer updates
+          case 'sequencer_update':
+            // Validate the required fields
+            if (!data.sequenceData || !Array.isArray(data.sequenceData)) {
+              throw new Error('Invalid sequencer data format');
+            }
+            
+            // Broadcast the update to all clients except the sender
+            const updateMessage = JSON.stringify({
+              type: 'sequencer_update',
+              sequenceData: data.sequenceData,
+              sourceClient: ws.connectionId,
+              timestamp: Date.now()
+            });
+            
+            clients.forEach(client => {
+              if (client !== ws && client.readyState === WS.OPEN) {
+                client.send(updateMessage);
+              }
+            });
+            
+            console.log(`Broadcasted sequencer update from ${ws.connectionId} to ${clients.size - 1} clients`);
+            break;
+            
+          // Handle pattern preset changes
+          case 'preset_change':
+            if (!data.presetName || typeof data.presetName !== 'string') {
+              throw new Error('Invalid preset name');
+            }
+            
+            // Broadcast the preset change to all clients except the sender
+            const presetMessage = JSON.stringify({
+              type: 'preset_change',
+              presetName: data.presetName,
+              sourceClient: ws.connectionId,
+              timestamp: Date.now()
+            });
+            
+            clients.forEach(client => {
+              if (client !== ws && client.readyState === WS.OPEN) {
+                client.send(presetMessage);
+              }
+            });
+            
+            console.log(`Broadcasted preset change (${data.presetName}) from ${ws.connectionId} to ${clients.size - 1} clients`);
+            break;
+            
+          // Handle step toggle events
+          case 'toggle_step':
+            if (typeof data.trackIndex !== 'number' || typeof data.stepIndex !== 'number') {
+              throw new Error('Invalid step toggle data');
+            }
+            
+            // Broadcast the step toggle to all clients except the sender
+            const toggleMessage = JSON.stringify({
+              type: 'toggle_step',
+              trackIndex: data.trackIndex,
+              stepIndex: data.stepIndex,
+              sourceClient: ws.connectionId,
+              timestamp: Date.now()
+            });
+            
+            clients.forEach(client => {
+              if (client !== ws && client.readyState === WS.OPEN) {
+                client.send(toggleMessage);
+              }
+            });
+            
+            console.log(`Broadcasted step toggle (track: ${data.trackIndex}, step: ${data.stepIndex}) from ${ws.connectionId}`);
+            break;
+            
           default:
             console.log('Processing message:', data);
         }

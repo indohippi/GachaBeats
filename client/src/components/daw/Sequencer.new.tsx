@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Card,
   Tabs,
@@ -29,63 +29,23 @@ import {
   setFilterFrequency,
   setFilterType,
 } from './AudioEngine';
-import type { setupWebSocket } from '@/lib/websocket';
 
 // Constants
 const STEPS = 16;
 const TRACKS = 8;
 const TRACK_SOUNDS = ['kick', 'snare', 'hihat', 'rim', 'clap'];
 
-// Sequencer Props interface
-interface SequencerProps {
-  websocket?: ReturnType<typeof setupWebSocket> | null;
-  isConnected?: boolean;
-  connectionId?: string;
-}
-
-// Preset patterns for the sequencer
-const PRESETS = {
-  'basic-beat': [
-    [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
-    [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-    [false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, false],
-    [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-    [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-    [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-    [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-    [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false]
-  ],
-  'four-on-floor': [
-    [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
-    [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-    [false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, true],
-    [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-    [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-    [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-    [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-    [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false]
-  ]
-};
-
-const Sequencer = forwardRef<any, SequencerProps>(({
-  websocket = null,
-  isConnected = false,
-  connectionId
-}, ref) => {
+export default function Sequencer() {
   // State
   const [playing, setPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [bpm, setBpmState] = useState(120);
   const [scale, setScale] = useState<'C_MAJOR' | 'PENTATONIC' | 'BLUES'>('C_MAJOR');
-  const [currentPreset, setCurrentPreset] = useState<string | null>(null);
   
   // Initialize sequence with 8 empty tracks
   const [sequence, setSequence] = useState<boolean[][]>(
     Array(TRACKS).fill(null).map(() => Array(STEPS).fill(false))
   );
-
-  // Track remote updates to avoid feedback loops
-  const isRemoteUpdateRef = useRef(false);
   
   // FX States
   const [reverbAmount, setReverbAmountState] = useState(0.3);
@@ -607,12 +567,6 @@ const Sequencer = forwardRef<any, SequencerProps>(({
       const newTrack = [...newSequence[trackIndex]];
       newTrack[stepIndex] = !newTrack[stepIndex];
       newSequence[trackIndex] = newTrack;
-      
-      // Send WebSocket message if connected and not from a remote update
-      if (websocket && isConnected && !isRemoteUpdateRef.current) {
-        websocket.sendToggleStep(trackIndex, stepIndex);
-      }
-      
       return newSequence;
     });
     
@@ -636,82 +590,6 @@ const Sequencer = forwardRef<any, SequencerProps>(({
     setBpmState(value);
     setBPM(value);
   }, []);
-  
-  // Helper to handle slider value changes with proper typing
-  const handleSliderChange = useCallback(<T extends number>(setter: (value: T) => void) => {
-    return (values: T[]) => {
-      if (values.length > 0) {
-        setter(values[0]);
-      }
-    };
-  }, []);
-
-  // Method to load a preset pattern
-  const loadPreset = useCallback((presetName: string) => {
-    if (presetName in BEAT_PRESETS) {
-      isRemoteUpdateRef.current = false;
-      generateBeatPreset(presetName);
-      setSelectedPreset(presetName);
-      
-      // Broadcast preset change if connected
-      if (websocket && isConnected && !isRemoteUpdateRef.current) {
-        websocket.sendPresetChange(presetName);
-      }
-    }
-  }, [websocket, isConnected, generateBeatPreset]);
-  
-  // Methods for remote control via WebSocket - these are exposed through the ref
-  
-  // Method to update pattern from remote client
-  const updatePatternFromRemote = useCallback((newSequence: boolean[][]) => {
-    if (Array.isArray(newSequence) && newSequence.length === TRACKS) {
-      isRemoteUpdateRef.current = true;
-      setSequence(newSequence);
-      isRemoteUpdateRef.current = false;
-    }
-  }, []);
-  
-  // Method to load preset from remote client
-  const loadPresetFromRemote = useCallback((presetName: string) => {
-    if (presetName in BEAT_PRESETS) {
-      isRemoteUpdateRef.current = true;
-      generateBeatPreset(presetName);
-      setSelectedPreset(presetName);
-      isRemoteUpdateRef.current = false;
-    }
-  }, [generateBeatPreset]);
-  
-  // Method to toggle step from remote client
-  const toggleStepFromRemote = useCallback((trackIndex: number, stepIndex: number) => {
-    if (trackIndex >= 0 && trackIndex < TRACKS && stepIndex >= 0 && stepIndex < STEPS) {
-      isRemoteUpdateRef.current = true;
-      setSequence(prevSequence => {
-        const newSequence = [...prevSequence];
-        const newTrack = [...newSequence[trackIndex]];
-        newTrack[stepIndex] = !newTrack[stepIndex];
-        newSequence[trackIndex] = newTrack;
-        return newSequence;
-      });
-      isRemoteUpdateRef.current = false;
-    }
-  }, []);
-  
-  // Broadcast the entire sequence state when it changes
-  useEffect(() => {
-    if (websocket && isConnected && !isRemoteUpdateRef.current) {
-      websocket.sendSequencerUpdate(sequence);
-    }
-  }, [sequence, websocket, isConnected]);
-  
-  // Expose methods to parent component via ref
-  useImperativeHandle(ref, () => ({
-    updatePatternFromRemote,
-    loadPresetFromRemote,
-    toggleStepFromRemote,
-    getCurrentSequence: () => sequence,
-    getBPM: () => bpm,
-    isPlaying: () => playing
-  }));
 
   return (
     <Card className="gba-pixel-border p-4 bg-[--gba-darker]">
@@ -738,7 +616,7 @@ const Sequencer = forwardRef<any, SequencerProps>(({
                   min={60}
                   max={200}
                   step={1}
-                  onValueChange={(values: number[]) => handleBpmChange(values[0])}
+                  onValueChange={([value]) => handleBpmChange(value)}
                   className="flex-1"
                 />
               </div>
@@ -961,7 +839,4 @@ const Sequencer = forwardRef<any, SequencerProps>(({
       </Tabs>
     </Card>
   );
-});
-
-// Export the component
-export default Sequencer;
+}

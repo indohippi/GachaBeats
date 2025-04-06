@@ -21,6 +21,12 @@ export default function DAWApp() {
   const wsRef = useRef<ReturnType<typeof setupWebSocket> | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
 
+  // Store sequencer component reference to sync pattern updates
+  const sequencerRef = useRef<any>(null);
+  
+  // Create reference for connectionId so we can access it in callbacks
+  const connectionIdRef = useRef<string | null>(null);
+  
   const connect = useCallback((): ReturnType<typeof setupWebSocket> => {
     console.log(`Attempting WebSocket connection (attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
     
@@ -31,12 +37,13 @@ export default function DAWApp() {
         setReconnectAttempts(0);
         toast({
           title: "Connected",
-          description: "Successfully connected to server",
+          description: "Successfully connected to multiplayer session",
         });
       },
       onDisconnect: () => {
         console.log('WebSocket disconnected');
         setConnected(false);
+        connectionIdRef.current = null;
         
         if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
           toast({
@@ -64,11 +71,54 @@ export default function DAWApp() {
           description: "Failed to connect to server",
           variant: "destructive",
         });
+      },
+      onMessage: (data) => {
+        // Store connection ID when we receive it
+        if (data.type === 'connected' && data.connectionId) {
+          connectionIdRef.current = data.connectionId;
+          console.log(`Received connection ID: ${data.connectionId}`);
+        }
+        
+        // Handle sequencer updates from other clients
+        if (data.type === 'sequencer_update' && 
+            data.sourceClient !== connectionIdRef.current && 
+            sequencerRef.current) {
+          console.log(`Received sequencer update from ${data.sourceClient}`);
+          
+          // Update the sequencer with the new pattern data
+          // This requires the Sequencer component to expose an update method
+          sequencerRef.current.updatePatternFromRemote?.(data.sequenceData);
+        }
+        
+        // Handle preset changes from other clients
+        if (data.type === 'preset_change' && 
+            data.sourceClient !== connectionIdRef.current && 
+            sequencerRef.current) {
+          console.log(`Received preset change to "${data.presetName}" from ${data.sourceClient}`);
+          
+          // Apply the preset change
+          sequencerRef.current.loadPresetFromRemote?.(data.presetName);
+          
+          toast({
+            title: "Preset Changed",
+            description: `Another player changed the pattern to "${data.presetName}"`,
+          });
+        }
+        
+        // Handle step toggle events from other clients  
+        if (data.type === 'toggle_step' && 
+            data.sourceClient !== connectionIdRef.current && 
+            sequencerRef.current) {
+          console.log(`Received step toggle at [${data.trackIndex},${data.stepIndex}] from ${data.sourceClient}`);
+          
+          // Apply the step toggle
+          sequencerRef.current.toggleStepFromRemote?.(data.trackIndex, data.stepIndex);
+        }
       }
     });
   }, [reconnectAttempts, toast]);
 
-  // Simulate connection behavior for development purposes
+  // Set up real WebSocket connection
   useEffect(() => {
     // Don't attempt connection until audio is initialized
     if (!audioInitialized) {
@@ -76,25 +126,28 @@ export default function DAWApp() {
       return;
     }
 
-    // Simulate a successful connection after a short delay
-    const connectionTimeout = setTimeout(() => {
-      console.log('Simulating successful WebSocket connection for development');
-      setConnected(true);
-      setReconnectAttempts(0);
-      
-      toast({
-        title: "Connected",
-        description: "Connection established with session id: dev-only-mode",
-      });
-    }, 1000);
+    // Clear any existing connections
+    if (wsRef.current) {
+      console.log('Closing existing WebSocket connection before creating a new one');
+      wsRef.current.close();
+    }
     
-    // Clear the timeout on cleanup
+    // Create a new connection
+    console.log('Creating new WebSocket connection');
+    wsRef.current = connect();
+    
+    // Clean up on unmount
     return () => {
-      clearTimeout(connectionTimeout);
-      setConnected(false);
-      setReconnectAttempts(0);
+      if (wsRef.current) {
+        console.log('Cleaning up WebSocket connection on component unmount');
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
     };
-  }, [toast, audioInitialized]);
+  }, [connect, audioInitialized]);
 
   const handleInitAudio = async () => {
     console.log('[DAWApp] Starting audio system initialization...');
@@ -173,7 +226,12 @@ export default function DAWApp() {
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <Sequencer />
+            <Sequencer 
+              ref={sequencerRef}
+              websocket={wsRef.current}
+              isConnected={connected}
+              connectionId={connectionIdRef.current || undefined}
+            />
           </div>
           <div>
             <GachaSystem />

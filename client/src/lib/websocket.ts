@@ -27,6 +27,88 @@ const HEARTBEAT_INTERVAL = 15000; // 15 seconds
 const CONNECTION_TIMEOUT = 10000; // 10 seconds connection timeout
 const JITTER_MAX = 0.1; // 10% maximum jitter factor
 
+// DAW-specific message handlers
+export interface SequencerUpdateMessage {
+  type: 'sequencer_update';
+  sequenceData: boolean[][];
+  sourceClient: string;
+  timestamp: number;
+}
+
+export interface PresetChangeMessage {
+  type: 'preset_change';
+  presetName: string;
+  sourceClient: string;
+  timestamp: number;
+}
+
+export interface ToggleStepMessage {
+  type: 'toggle_step';
+  trackIndex: number;
+  stepIndex: number;
+  sourceClient: string;
+  timestamp: number;
+}
+
+export type DAWMessage = SequencerUpdateMessage | PresetChangeMessage | ToggleStepMessage;
+
+// Send functions for DAW-specific messages
+export const sendSequencerUpdate = (
+  socket: WebSocket | null, 
+  sequenceData: boolean[][]
+) => {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+  
+  try {
+    socket.send(JSON.stringify({
+      type: 'sequencer_update',
+      sequenceData
+    }));
+    return true;
+  } catch (error) {
+    console.error('Failed to send sequencer update:', error);
+    return false;
+  }
+};
+
+export const sendPresetChange = (
+  socket: WebSocket | null,
+  presetName: string
+) => {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+  
+  try {
+    socket.send(JSON.stringify({
+      type: 'preset_change',
+      presetName
+    }));
+    return true;
+  } catch (error) {
+    console.error('Failed to send preset change:', error);
+    return false;
+  }
+};
+
+export const sendToggleStep = (
+  socket: WebSocket | null,
+  trackIndex: number,
+  stepIndex: number
+) => {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+  
+  try {
+    socket.send(JSON.stringify({
+      type: 'toggle_step',
+      trackIndex,
+      stepIndex
+    }));
+    return true;
+  } catch (error) {
+    console.error('Failed to send step toggle:', error);
+    return false;
+  }
+};
+
 export const setupWebSocket = (handlers: WebSocketHandlers) => {
   let ws: WebSocket | null = null;
   let heartbeatInterval: NodeJS.Timeout;
@@ -205,6 +287,15 @@ export const setupWebSocket = (handlers: WebSocketHandlers) => {
     reconnect: () => {
       state.reconnectAttempts = 0;
       connect();
-    }
+    },
+    // Add methods to access the WebSocket object and send messages
+    getSocket: () => ws,
+    // DAW-specific message methods
+    sendSequencerUpdate: (sequenceData: boolean[][]) => 
+      sendSequencerUpdate(ws, sequenceData),
+    sendPresetChange: (presetName: string) => 
+      sendPresetChange(ws, presetName),
+    sendToggleStep: (trackIndex: number, stepIndex: number) =>
+      sendToggleStep(ws, trackIndex, stepIndex)
   };
 };
