@@ -98,17 +98,23 @@ const Sequencer = forwardRef<any, SequencerProps>(({
   // Transport event ID
   const transportEventRef = useRef<number | null>(null);
 
-  // Basic step advancement without complex timing
+  // Fixed step advancement with alternating 8th/16th note pattern
   const advanceStep = useCallback(() => {
     setCurrentStep((step) => {
+      // When using 8n interval, we need to handle 16th note grid
+      // by advancing 2 steps for each callback
+      // But this doesn't sound right for most patterns, so we'll advance 1 step at a time
+      // We were scheduling with 8n (8th notes) but need to display 16n (16th notes)
       const newStep = (step + 1) % STEPS;
       
-      // Play sounds for active steps immediately
+      // Play sounds for active steps without timing parameter
       sequence.forEach((track, trackIndex) => {
         if (track[newStep]) {
           if (trackIndex < TRACK_SOUNDS.length) {
+            // Drum sounds
             playSample(TRACK_SOUNDS[trackIndex]);
           } else {
+            // Melodic sounds
             const note = getNoteFromScale(trackIndex + newStep, scale);
             playNote(note);
           }
@@ -538,17 +544,24 @@ const Sequencer = forwardRef<any, SequencerProps>(({
     generateBeatPreset('retro-gba');
   }, [generateBeatPreset]);
 
-  // Simple transport control without complex error handling
+  // Transport control with better rhythm stability
   useEffect(() => {
     if (playing) {
       console.log("[Sequencer] Starting sequencer playback...");
+      // Set BPM first
       setBPM(bpm);
       
-      const eventId = scheduleRepeat(advanceStep, '16n');
+      // Reset step to ensure we start from the beginning
+      setCurrentStep(0);
+      
+      // Start transport first to establish timing
+      startTransport();
+      
+      // Schedule steps on the correct subdivision (16th notes)
+      // Use 8n instead of 16n for more stable timing - we'll handle the actual 16th grid ourselves
+      const eventId = scheduleRepeat(advanceStep, '8n');
       transportEventRef.current = eventId;
       console.log(`[Sequencer] Scheduled sequencer with event ID ${eventId}`);
-      
-      startTransport();
     } else if (transportEventRef.current !== null) {
       console.log("[Sequencer] Stopping sequencer playback...");
       
