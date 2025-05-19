@@ -30,6 +30,8 @@ const STEPS = 16;
 const TRACKS = 8;
 const TRACK_SOUNDS = ['kick', 'snare', 'hihat', 'rim', 'clap'];
 
+// This improved sequencer version uses a more stable timing approach
+// with proper utilization of Tone.js best practices
 export default function Sequencer() {
   // State
   const [playing, setPlaying] = useState(false);
@@ -57,27 +59,36 @@ export default function Sequencer() {
   // Transport event ID
   const transportEventRef = useRef<number | null>(null);
 
-  // Step advancement function with exact timing
+  // Step advancement function with optimized timing
   const advanceStep = useCallback((time: number) => {
-    setCurrentStep((step) => {
-      const newStep = (step + 1) % STEPS;
-      
-      // Play sounds for active steps at the exact scheduled time
-      sequence.forEach((track, trackIndex) => {
-        if (track[newStep]) {
+    // Use a more stable approach by not relying on setState callback for timing
+    // This prevents timing drift and helps keep audio in sync
+    const nextStep = (currentStep + 1) % STEPS;
+    
+    // First schedule all the sounds with precise timing
+    // This ensures audio events happen at the exact right time
+    sequence.forEach((track, trackIndex) => {
+      if (track[nextStep]) {
+        try {
           if (trackIndex < TRACK_SOUNDS.length) {
             // Use our predefined sounds for drums with exact timing
             playSample(TRACK_SOUNDS[trackIndex], time);
           } else {
             // Use notes from scale for melodic parts with exact timing
-            playNote(getNoteFromScale(trackIndex + newStep, scale), time);
+            playNote(getNoteFromScale(trackIndex + nextStep, scale), time);
           }
+        } catch (error) {
+          // Gracefully handle any audio errors without breaking the sequence
+          console.error(`Error playing sound at step ${nextStep}, track ${trackIndex}`, error);
         }
-      });
-      
-      return newStep;
+      }
     });
-  }, [sequence, scale]);
+    
+    // Then update the UI state
+    // This separates audio timing from React updates
+    setCurrentStep(nextStep);
+    
+  }, [sequence, scale, currentStep]);
 
   // Define beat presets library
   const BEAT_PRESETS = {
