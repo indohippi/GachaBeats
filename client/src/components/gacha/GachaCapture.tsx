@@ -10,36 +10,35 @@ interface Sound {
   url: string;
 }
 
-// Generate GBA-styled machine SVG inline
+// Generate styled machine SVG inline matching reference design
 const MachineSVG = () => (
-  <svg width="100%" height="100%" viewBox="0 0 400 500" className="machine">
-    <rect x="50" y="100" width="300" height="300" rx="15" fill="#8a60c4" stroke="#5e3a8d" strokeWidth="8" />
-    <rect x="80" y="140" width="240" height="160" rx="5" fill="#e288bb" />
-    <rect x="80" y="320" width="240" height="40" rx="5" fill="#9a74e3" />
-    <rect x="120" y="335" width="160" height="15" rx="5" fill="#f9c846" />
-    <circle cx="200" cy="220" r="70" fill="#9be7ff" stroke="#5e3a8d" strokeWidth="5" />
-    <rect x="40" y="370" width="30" height="100" rx="5" fill="#f9c846" stroke="#5e3a8d" strokeWidth="4" />
-    <rect x="35" y="350" width="40" height="30" rx="5" fill="#f06e5b" stroke="#5e3a8d" strokeWidth="4" />
+  <svg width="100%" height="100%" viewBox="0 0 400 400" className="machine">
+    <rect x="50" y="50" width="300" height="300" rx="15" fill="#8a60c4" stroke="#5e3a8d" strokeWidth="8" />
+    <rect x="80" y="90" width="240" height="170" rx="5" fill="#e288bb" />
+    <rect x="80" y="270" width="240" height="50" rx="5" fill="#9a74e3" />
+    <rect x="120" y="285" width="160" height="20" rx="5" fill="#f9c846" />
+    <circle cx="200" cy="175" r="75" fill="#333" stroke="#5e3a8d" strokeWidth="5" />
+    <circle cx="200" cy="175" r="70" fill="#444" strokeWidth="0" />
   </svg>
 );
 
 const HandleSVG = () => (
-  <svg width="40" height="120" viewBox="0 0 40 120" className="handle">
-    <rect x="5" y="5" width="30" height="110" rx="10" fill="#ff7676" stroke="#5e3a8d" strokeWidth="4" />
-    <circle cx="20" cy="25" r="15" fill="#ffde59" stroke="#5e3a8d" strokeWidth="4" />
+  <svg width="40" height="100" viewBox="0 0 40 100" className="handle">
+    <rect x="5" y="10" width="30" height="90" rx="10" fill="#ff7676" stroke="#5e3a8d" strokeWidth="4" />
+    <circle cx="20" cy="20" r="15" fill="#ffde59" stroke="#5e3a8d" strokeWidth="4" />
   </svg>
 );
 
 const PointerSVG = () => (
-  <svg width="50" height="60" viewBox="0 0 50 60" className="pointer">
-    <path d="M10,10 L40,30 L10,50 Z" fill="#ffde59" stroke="#5e3a8d" strokeWidth="3" />
+  <svg width="40" height="50" viewBox="0 0 40 50" className="pointer">
+    <path d="M5,5 L35,25 L5,45 Z" fill="#ffde59" stroke="#5e3a8d" strokeWidth="3" />
   </svg>
 );
 
 const BallSVG = ({ color1 = '#6ba4ff', color2 = '#ff8ff6', outline = '#4c3fc2' }) => (
-  <svg width="60" height="60" viewBox="0 0 60 60" className="ball">
-    <circle cx="30" cy="30" r="28" fill={color1} stroke={outline} strokeWidth="4" />
-    <circle cx="20" cy="35" r="28" fill={color2} opacity="0.7" />
+  <svg width="50" height="50" viewBox="0 0 50 50" className="ball">
+    <circle cx="25" cy="25" r="22" fill={color1} stroke={outline} strokeWidth="3" />
+    <circle cx="18" cy="27" r="22" fill={color2} opacity="0.7" />
   </svg>
 );
 
@@ -121,29 +120,32 @@ export default function GachaCapture() {
   return (
     <Card className="gba-pixel-border w-full h-full bg-[--gba-darker] overflow-hidden relative">
       <div className="gacha-container h-full w-full flex flex-col items-center justify-center relative">
-        {/* Center everything properly */}
+        {/* Center everything properly following the reference design */}
         <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-          {/* Game Layer */}
-          <div className={`game-layer w-[400px] h-[400px] flex items-center justify-center relative ${showPrize ? 'dim' : ''}`}>
-            <div className="machine-container relative flex items-center justify-center" ref={machineRef}>
-              {/* Backboard */}
-              <div className="backboard absolute z-0 w-[120px] h-[80px] top-[55%] left-[34%] bg-[#e288bb] rounded-sm"></div>
+          {/* Game Layer - using reference layout */}
+          <div className={`game-layer w-full h-full flex items-center justify-center ${showPrize ? 'dim' : ''}`}>
+            <div className="machine-container relative w-[320px] h-[400px]" ref={machineRef}>
+              {/* Backboard - positioned like the reference */}
+              <div className="backboard absolute z-0 w-[100px] h-[80px] top-[65%] left-[48%] bg-[#e288bb] rounded-sm"></div>
               
-              {/* Machine SVG - Fixed Size */}
-              <div className="machine-wrapper w-[300px] h-[300px] relative">
+              {/* Machine SVG */}
+              <div className="machine-wrapper relative max-h-[80vh] pointer-events-none">
                 <MachineSVG />
               </div>
               
-              {/* Balls Container */}
-              <div className="balls-container absolute top-[27%] left-[25%] w-[50%] h-[25%] flex flex-wrap justify-center items-center">
-                {ballsArray.map((ball) => (
+              {/* Balls Container - positioned to match reference */}
+              <div className="balls-container absolute top-[22%] left-[2%] w-[96%] h-[34.5%] flex flex-wrap justify-center items-center">
+                {ballsArray.map((ball, index) => (
                   <div 
                     key={ball.id} 
-                    className="ball-wrapper relative" 
+                    className="ball-wrapper absolute" 
                     style={{
-                      transform: `translate(${Math.random() * 10 - 5}px, ${Math.random() * 10 - 5}px) rotate(${Math.random() * 30 - 15}deg)`,
-                      transition: 'transform 0.5s ease-in-out',
-                      margin: '2px'
+                      top: `${20 + (Math.random() * 60)}%`,
+                      left: `${5 + (index * 12) + (Math.random() * 5)}%`,
+                      transform: `rotate(${Math.random() * 30 - 15}deg)`,
+                      transition: 'transform 0.3s ease-in-out, top 0.5s ease-in-out',
+                      margin: '2px',
+                      zIndex: isPlaying && index === 4 ? 5 : 1
                     }}
                   >
                     <BallSVG color1={ball.color1} color2={ball.color2} outline={ball.outline} />
@@ -151,9 +153,9 @@ export default function GachaCapture() {
                 ))}
               </div>
               
-              {/* Title */}
+              {/* Title - matching the style of reference */}
               <div 
-                className="title absolute top-[12%] w-full text-center text-[24px] text-[#ffc7e5] font-bold z-10"
+                className="title absolute top-[10%] w-full text-center text-[28px] text-[#ffc7e5] font-bold z-3"
                 style={{
                   textShadow: '0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6'
                 }}
@@ -171,14 +173,14 @@ export default function GachaCapture() {
                 ))}
               </div>
               
-              {/* Price */}
-              <div className="price absolute z-10 top-[80%] left-[15%] text-[16px] text-[#fb91c9] font-bold">
+              {/* Price - positioned like reference */}
+              <div className="price absolute z-3 top-[80%] left-[15%] text-[18px] text-[#fb91c9] font-bold">
                 100 coins
               </div>
               
-              {/* Handle */}
+              {/* Handle - matching the reference */}
               <div 
-                className={`handle-container absolute z-10 left-[15%] top-[68%] cursor-pointer ${isPlaying ? 'playing' : ''}`}
+                className={`handle-container absolute z-3 left-[13%] top-[69%] cursor-pointer ${isPlaying ? 'playing' : ''}`}
                 onClick={!isPlaying ? handlePlay : undefined}
                 style={{
                   transform: isPlaying ? 'rotate(90deg)' : 'rotate(0deg)',
@@ -189,27 +191,27 @@ export default function GachaCapture() {
                 <HandleSVG />
               </div>
               
-              {/* Pointer */}
+              {/* Pointer - positioned like reference */}
               <div 
-                className={`pointer-container absolute top-[72%] left-[16%] z-10 pointer-events-none ${!isPlaying ? 'animate-bounce' : 'opacity-0'}`}
-                style={{ animation: !isPlaying ? 'click 1s ease-in-out infinite both' : 'none' }}
+                className={`pointer-container absolute top-[75%] left-[15%] z-5 pointer-events-none ${!isPlaying ? '' : 'opacity-0'}`}
               >
-                <PointerSVG />
+                <div className="pointer-animation" style={{ animation: !isPlaying ? 'click 1s ease-in-out infinite both' : 'none', transformOrigin: '0% 0%' }}>
+                  <PointerSVG />
+                </div>
               </div>
             </div>
           </div>
           
-          {/* UI Layer */}
+          {/* UI Layer - Following reference design */}
           <div className="ui-layer absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
             {/* Title Container */}
-            <div className="title-container absolute top-[15%] left-0 w-full h-[10%] overflow-hidden z-10">
-              <div className={`title flex items-center justify-center w-full ${!isPlaying ? 'translate-y-[100px]' : 'translate-y-0'}`}
+            <div className="title-container absolute top-0 left-0 w-full h-full overflow-hidden z-10">
+              <div className={`title flex items-center justify-center w-full h-full ${!isPlaying ? 'translate-y-[80vh]' : 'translate-y-0'}`}
                    style={{ transition: 'transform 0.5s ease-in-out' }}>
                 <h2 
-                  className="text-center text-[20px] font-bold text-white"
+                  className="text-center text-[24px] font-bold text-white wiggle"
                   style={{
-                    textShadow: '0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b',
-                    animation: 'wiggle 2s ease-in-out infinite both'
+                    textShadow: '0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b'
                   }}
                 >
                   {!showPrize ? 'Pull the lever to get a sound!' : `You got ${currentPrize?.name}!`}
@@ -217,7 +219,7 @@ export default function GachaCapture() {
               </div>
             </div>
             
-            {/* Prize Container */}
+            {/* Prize Container - Following reference */}
             <div className="prize-container absolute top-0 left-0 w-full h-full overflow-hidden">
               {/* Prize Ball Container */}
               <div className="prize-ball-container absolute top-0 left-0 w-full h-full overflow-hidden">
@@ -231,22 +233,22 @@ export default function GachaCapture() {
                 )}
               </div>
               
-              {/* Prize Reward Container */}
+              {/* Prize Reward Container - Matching reference */}
               <div className={`prize-reward-container absolute top-0 left-0 w-full h-full flex items-center justify-center ${showPrize ? 'opacity-100' : 'opacity-0'}`} style={{ transition: 'opacity 0.5s ease-in-out' }}>
                 {showPrize && currentPrize && (
                   <>
                     {/* Shine */}
                     <div className="shine absolute w-full h-full flex items-center justify-center">
-                      <div className="w-[80%] h-[80%] rounded-full bg-gradient-to-r from-white to-transparent opacity-30" style={{ animation: 'spin linear 5s infinite forwards' }}></div>
+                      <div className="w-full h-full rounded-full bg-gradient-to-r from-white to-transparent opacity-30" style={{ animation: 'spin linear 5s infinite forwards' }}></div>
                     </div>
                     
-                    {/* Prize */}
+                    {/* Prize - Styled like reference */}
                     <div className="prize flex flex-col items-center justify-center gap-4 z-10 pointer-events-auto">
-                      <div className="w-[100px] h-[100px] bg-[--gba-light] rounded-full flex items-center justify-center wiggle shadow-lg">
-                        <span className="text-[50px] font-bold">🎵</span>
+                      <div className="w-[120px] h-[120px] bg-[--gba-light] rounded-full flex items-center justify-center wiggle shadow-lg">
+                        <span className="text-[60px] font-bold">🎵</span>
                       </div>
-                      <h3 className="text-[24px] font-bold text-white mt-2">{currentPrize.name}</h3>
-                      <div className={`rarity px-4 py-1 rounded-full text-black font-bold ${
+                      <h3 className="text-[28px] font-bold text-white mt-2">{currentPrize.name}</h3>
+                      <div className={`rarity px-6 py-2 rounded-full text-black font-bold text-[18px] ${
                         currentPrize.rarity === 'Common' ? 'bg-gray-300' : 
                         currentPrize.rarity === 'Uncommon' ? 'bg-green-300' : 
                         currentPrize.rarity === 'Rare' ? 'bg-blue-300' :
@@ -255,7 +257,7 @@ export default function GachaCapture() {
                         {currentPrize.rarity}
                       </div>
                       <Button 
-                        className="mt-4 gba-button pointer-events-auto"
+                        className="mt-6 gba-button pointer-events-auto px-6 py-3 text-lg"
                         onClick={resetGacha}
                       >
                         Play Again
