@@ -12,13 +12,13 @@ interface Sound {
 
 // Generate styled machine SVG inline matching reference design
 const MachineSVG = () => (
-  <svg width="100%" height="100%" viewBox="0 0 400 400" className="machine">
-    <rect x="50" y="50" width="300" height="300" rx="15" fill="#8a60c4" stroke="#5e3a8d" strokeWidth="8" />
-    <rect x="80" y="90" width="240" height="170" rx="5" fill="#e288bb" />
-    <rect x="80" y="270" width="240" height="50" rx="5" fill="#9a74e3" />
-    <rect x="120" y="285" width="160" height="20" rx="5" fill="#f9c846" />
-    <circle cx="200" cy="175" r="75" fill="#333" stroke="#5e3a8d" strokeWidth="5" />
-    <circle cx="200" cy="175" r="70" fill="#444" strokeWidth="0" />
+  <svg width="300" height="300" viewBox="0 0 300 300" className="machine">
+    <rect x="25" y="25" width="250" height="250" rx="15" fill="#8a60c4" stroke="#5e3a8d" strokeWidth="8" />
+    <rect x="45" y="45" width="210" height="150" rx="5" fill="#e288bb" />
+    <rect x="45" y="200" width="210" height="45" rx="5" fill="#9a74e3" />
+    <rect x="65" y="215" width="170" height="20" rx="5" fill="#f9c846" />
+    <circle cx="150" cy="120" r="65" fill="#333" stroke="#5e3a8d" strokeWidth="5" />
+    <circle cx="150" cy="120" r="60" fill="#444" strokeWidth="0" />
   </svg>
 );
 
@@ -133,29 +133,37 @@ export default function GachaCapture() {
                 <MachineSVG />
               </div>
               
-              {/* Balls Container - positioned to match reference */}
-              <div className="balls-container absolute top-[22%] left-[2%] w-[96%] h-[34.5%] flex flex-wrap justify-center items-center">
-                {ballsArray.map((ball, index) => (
-                  <div 
-                    key={ball.id} 
-                    className="ball-wrapper absolute" 
-                    style={{
-                      top: `${20 + (Math.random() * 60)}%`,
-                      left: `${5 + (index * 12) + (Math.random() * 5)}%`,
-                      transform: `rotate(${Math.random() * 30 - 15}deg)`,
-                      transition: 'transform 0.3s ease-in-out, top 0.5s ease-in-out',
-                      margin: '2px',
-                      zIndex: isPlaying && index === 4 ? 5 : 1
-                    }}
-                  >
-                    <BallSVG color1={ball.color1} color2={ball.color2} outline={ball.outline} />
-                  </div>
-                ))}
+              {/* Balls Container - positioned inside the circle */}
+              <div className="balls-container absolute top-[15%] left-[25%] w-[50%] h-[30%] flex flex-wrap justify-center items-center">
+                {ballsArray.map((ball, index) => {
+                  // Calculate position in a circular pattern
+                  const angle = (index / ballsArray.length) * 2 * Math.PI;
+                  const radius = 20; // % of container
+                  const xPos = 50 + radius * Math.cos(angle);
+                  const yPos = 50 + radius * Math.sin(angle);
+                  
+                  return (
+                    <div 
+                      key={ball.id} 
+                      className="ball-wrapper absolute" 
+                      style={{
+                        top: `${yPos}%`,
+                        left: `${xPos}%`,
+                        transform: `rotate(${Math.random() * 30 - 15}deg)`,
+                        transition: 'transform 0.3s ease-in-out, top 0.5s ease-in-out',
+                        margin: '2px',
+                        zIndex: isPlaying && index === 4 ? 5 : 1
+                      }}
+                    >
+                      <BallSVG color1={ball.color1} color2={ball.color2} outline={ball.outline} />
+                    </div>
+                  );
+                })}
               </div>
               
               {/* Title - matching the style of reference */}
               <div 
-                className="title absolute top-[10%] w-full text-center text-[28px] text-[#ffc7e5] font-bold z-3"
+                className="title absolute top-[8%] w-full text-center text-[22px] text-[#ffc7e5] font-bold z-10"
                 style={{
                   textShadow: '0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6'
                 }}
@@ -165,7 +173,8 @@ export default function GachaCapture() {
                     key={i} 
                     style={{
                       animation: `blink 0.8s linear both infinite ${i * 0.12}s`,
-                      display: 'inline-block'
+                      display: 'inline-block',
+                      margin: '0 1px'
                     }}
                   >
                     {char}
@@ -174,13 +183,13 @@ export default function GachaCapture() {
               </div>
               
               {/* Price - positioned like reference */}
-              <div className="price absolute z-3 top-[80%] left-[15%] text-[18px] text-[#fb91c9] font-bold">
-                100 coins
+              <div className="price absolute z-10 top-[80%] left-[40%] text-[16px] text-[#fb91c9] font-bold">
+                50 coins
               </div>
               
-              {/* Handle - matching the reference */}
+              {/* Handle - fixed position */}
               <div 
-                className={`handle-container absolute z-3 left-[13%] top-[69%] cursor-pointer ${isPlaying ? 'playing' : ''}`}
+                className={`handle-container absolute z-10 left-[8%] top-[65%] cursor-pointer ${isPlaying ? 'playing' : ''}`}
                 onClick={!isPlaying ? handlePlay : undefined}
                 style={{
                   transform: isPlaying ? 'rotate(90deg)' : 'rotate(0deg)',
@@ -191,9 +200,9 @@ export default function GachaCapture() {
                 <HandleSVG />
               </div>
               
-              {/* Pointer - positioned like reference */}
+              {/* Pointer - fixed position */}
               <div 
-                className={`pointer-container absolute top-[75%] left-[15%] z-5 pointer-events-none ${!isPlaying ? '' : 'opacity-0'}`}
+                className={`pointer-container absolute top-[67%] left-[12%] z-20 pointer-events-none ${!isPlaying ? '' : 'opacity-0'}`}
               >
                 <div className="pointer-animation" style={{ animation: !isPlaying ? 'click 1s ease-in-out infinite both' : 'none', transformOrigin: '0% 0%' }}>
                   <PointerSVG />
