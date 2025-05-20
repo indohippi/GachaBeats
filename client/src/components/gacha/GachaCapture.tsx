@@ -76,7 +76,7 @@ export default function GachaCapture() {
     
   }, []);
 
-  // Placeholder function to get a random sound when gacha is played
+  // Function to get a random sound when gacha is played
   const getRandomSound = (): Sound => {
     const sounds = [
       { id: 1, name: 'GBA Kick', rarity: 'Common', url: '/samples/kick.wav' },
@@ -99,7 +99,7 @@ export default function GachaCapture() {
       const prize = getRandomSound();
       setCurrentPrize(prize);
       
-      // Show confetti and prize after a delay
+      // Show prize after a delay
       setTimeout(() => {
         setShowPrize(true);
         
@@ -121,151 +121,153 @@ export default function GachaCapture() {
   return (
     <Card className="gba-pixel-border w-full h-full bg-[--gba-darker] overflow-hidden relative">
       <div className="gacha-container h-full w-full flex flex-col items-center justify-center relative">
-        
-        {/* Game Layer */}
-        <div className={`game-layer w-full h-full flex items-center justify-center relative ${showPrize ? 'dim' : ''}`}>
-          <div className="machine-container relative" ref={machineRef}>
-            {/* Backboard */}
-            <div className="backboard absolute z-0 w-[40%] h-[25%] top-[55%] left-[30%] bg-[#e288bb] rounded-sm"></div>
-            
-            {/* Machine SVG */}
-            <MachineSVG />
-            
-            {/* Balls Container */}
-            <div className="balls-container absolute top-[25%] left-[20%] w-[60%] h-[30%] flex flex-wrap justify-center items-center">
-              {ballsArray.map((ball) => (
-                <div 
-                  key={ball.id} 
-                  className="ball-wrapper relative" 
-                  style={{
-                    transform: `translate(${Math.random() * 20 - 10}px, ${Math.random() * 20 - 10}px) rotate(${Math.random() * 30 - 15}deg)`,
-                    transition: 'transform 0.5s ease-in-out',
-                    margin: '2px'
-                  }}
-                >
-                  <BallSVG color1={ball.color1} color2={ball.color2} outline={ball.outline} />
-                </div>
-              ))}
-            </div>
-            
-            {/* Title */}
-            <div 
-              className="title absolute top-[10%] w-full text-center text-[4vh] text-[#ffc7e5] font-bold z-10"
-              style={{
-                textShadow: '0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6'
-              }}
-            >
-              {Array.from('がんばれ!').map((char, i) => (
-                <span 
-                  key={i} 
-                  style={{
-                    animation: `blink 0.8s linear both infinite ${i * 0.12}s`,
-                    display: 'inline-block'
-                  }}
-                >
-                  {char}
-                </span>
-              ))}
-            </div>
-            
-            {/* Price */}
-            <div className="price absolute z-10 top-[80%] left-[15%] text-[#fb91c9] text-[2vh] font-bold">
-              100 coins
-            </div>
-            
-            {/* Handle */}
-            <div 
-              className={`handle-container absolute z-10 left-[13%] top-[70%] cursor-pointer ${isPlaying ? 'playing' : ''}`}
-              onClick={!isPlaying ? handlePlay : undefined}
-              style={{
-                transform: isPlaying ? 'rotate(90deg)' : 'rotate(0deg)',
-                transformOrigin: 'top center',
-                transition: 'transform 0.3s ease-in-out'
-              }}
-            >
-              <HandleSVG />
-            </div>
-            
-            {/* Pointer */}
-            <div 
-              className={`pointer-container absolute top-[75%] left-[15%] z-10 pointer-events-none ${!isPlaying ? 'animate-bounce' : 'opacity-0'}`}
-              style={{ animation: !isPlaying ? 'click 1s ease-in-out infinite both' : 'none' }}
-            >
-              <PointerSVG />
-            </div>
-          </div>
-        </div>
-        
-        {/* UI Layer */}
-        <div className="ui-layer absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          {/* Title Container */}
-          <div className="title-container absolute top-0 left-0 w-full h-full overflow-hidden z-10">
-            <div className={`title flex items-center justify-center w-full h-[20%] ${!isPlaying ? 'translate-y-full' : 'translate-y-0'}`}>
-              <h2 
-                className="text-center text-[3vh] font-bold"
+        {/* Center everything properly */}
+        <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+          {/* Game Layer */}
+          <div className={`game-layer w-[400px] h-[400px] flex items-center justify-center relative ${showPrize ? 'dim' : ''}`}>
+            <div className="machine-container relative flex items-center justify-center" ref={machineRef}>
+              {/* Backboard */}
+              <div className="backboard absolute z-0 w-[120px] h-[80px] top-[55%] left-[34%] bg-[#e288bb] rounded-sm"></div>
+              
+              {/* Machine SVG - Fixed Size */}
+              <div className="machine-wrapper w-[300px] h-[300px] relative">
+                <MachineSVG />
+              </div>
+              
+              {/* Balls Container */}
+              <div className="balls-container absolute top-[27%] left-[25%] w-[50%] h-[25%] flex flex-wrap justify-center items-center">
+                {ballsArray.map((ball) => (
+                  <div 
+                    key={ball.id} 
+                    className="ball-wrapper relative" 
+                    style={{
+                      transform: `translate(${Math.random() * 10 - 5}px, ${Math.random() * 10 - 5}px) rotate(${Math.random() * 30 - 15}deg)`,
+                      transition: 'transform 0.5s ease-in-out',
+                      margin: '2px'
+                    }}
+                  >
+                    <BallSVG color1={ball.color1} color2={ball.color2} outline={ball.outline} />
+                  </div>
+                ))}
+              </div>
+              
+              {/* Title */}
+              <div 
+                className="title absolute top-[12%] w-full text-center text-[24px] text-[#ffc7e5] font-bold z-10"
                 style={{
-                  textShadow: '0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b',
-                  animation: 'wiggle 2s ease-in-out infinite both'
+                  textShadow: '0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6, 0px 0px 2px #ad8bd6'
                 }}
               >
-                {!showPrize ? 'Tap to get a prize!' : `You got ${currentPrize?.name}!`}
-              </h2>
+                {Array.from('Sound Gacha!').map((char, i) => (
+                  <span 
+                    key={i} 
+                    style={{
+                      animation: `blink 0.8s linear both infinite ${i * 0.12}s`,
+                      display: 'inline-block'
+                    }}
+                  >
+                    {char}
+                  </span>
+                ))}
+              </div>
+              
+              {/* Price */}
+              <div className="price absolute z-10 top-[80%] left-[15%] text-[16px] text-[#fb91c9] font-bold">
+                100 coins
+              </div>
+              
+              {/* Handle */}
+              <div 
+                className={`handle-container absolute z-10 left-[15%] top-[68%] cursor-pointer ${isPlaying ? 'playing' : ''}`}
+                onClick={!isPlaying ? handlePlay : undefined}
+                style={{
+                  transform: isPlaying ? 'rotate(90deg)' : 'rotate(0deg)',
+                  transformOrigin: 'top center',
+                  transition: 'transform 0.3s ease-in-out'
+                }}
+              >
+                <HandleSVG />
+              </div>
+              
+              {/* Pointer */}
+              <div 
+                className={`pointer-container absolute top-[72%] left-[16%] z-10 pointer-events-none ${!isPlaying ? 'animate-bounce' : 'opacity-0'}`}
+                style={{ animation: !isPlaying ? 'click 1s ease-in-out infinite both' : 'none' }}
+              >
+                <PointerSVG />
+              </div>
             </div>
           </div>
           
-          {/* Prize Container */}
-          <div className="prize-container absolute top-0 left-0 w-full h-full overflow-hidden">
-            {/* Prize Ball Container */}
-            <div className="prize-ball-container absolute top-0 left-0 w-full h-full overflow-hidden">
-              {showPrize && prizeBall && (
-                <div 
-                  className="prize-ball absolute top-[50%] left-[50%] transform -translate-x-1/2 -translate-y-1/2 scale-[2] opacity-0"
-                  style={{ animation: 'fade-in 0.5s forwards' }}
+          {/* UI Layer */}
+          <div className="ui-layer absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+            {/* Title Container */}
+            <div className="title-container absolute top-[15%] left-0 w-full h-[10%] overflow-hidden z-10">
+              <div className={`title flex items-center justify-center w-full ${!isPlaying ? 'translate-y-[100px]' : 'translate-y-0'}`}
+                   style={{ transition: 'transform 0.5s ease-in-out' }}>
+                <h2 
+                  className="text-center text-[20px] font-bold text-white"
+                  style={{
+                    textShadow: '0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b, 0px 0px 2px #f06e5b',
+                    animation: 'wiggle 2s ease-in-out infinite both'
+                  }}
                 >
-                  <BallSVG color1={prizeBall.color1} color2={prizeBall.color2} outline={prizeBall.outline} />
-                </div>
-              )}
+                  {!showPrize ? 'Pull the lever to get a sound!' : `You got ${currentPrize?.name}!`}
+                </h2>
+              </div>
             </div>
             
-            {/* Prize Reward Container */}
-            <div className={`prize-reward-container absolute top-0 left-0 w-full h-full flex items-center justify-center ${showPrize ? 'opacity-100' : 'opacity-0'}`} style={{ transition: 'opacity 0.5s ease-in-out' }}>
-              {showPrize && currentPrize && (
-                <>
-                  {/* Shine */}
-                  <div className="shine absolute w-full h-full flex items-center justify-center">
-                    <div className="w-[80%] h-[80%] rounded-full bg-gradient-to-r from-white to-transparent opacity-30" style={{ animation: 'spin linear 5s infinite forwards' }}></div>
+            {/* Prize Container */}
+            <div className="prize-container absolute top-0 left-0 w-full h-full overflow-hidden">
+              {/* Prize Ball Container */}
+              <div className="prize-ball-container absolute top-0 left-0 w-full h-full overflow-hidden">
+                {showPrize && prizeBall && (
+                  <div 
+                    className="prize-ball absolute top-[50%] left-[50%] transform -translate-x-1/2 -translate-y-1/2 scale-[2] opacity-0"
+                    style={{ animation: 'fade-in 0.5s forwards' }}
+                  >
+                    <BallSVG color1={prizeBall.color1} color2={prizeBall.color2} outline={prizeBall.outline} />
                   </div>
-                  
-                  {/* Prize */}
-                  <div className="prize flex flex-col items-center justify-center gap-4 z-10 pointer-events-auto">
-                    <div className="w-[20vh] h-[20vh] bg-[--gba-light] rounded-full flex items-center justify-center wiggle">
-                      <span className="text-[6vh] font-bold">🎵</span>
+                )}
+              </div>
+              
+              {/* Prize Reward Container */}
+              <div className={`prize-reward-container absolute top-0 left-0 w-full h-full flex items-center justify-center ${showPrize ? 'opacity-100' : 'opacity-0'}`} style={{ transition: 'opacity 0.5s ease-in-out' }}>
+                {showPrize && currentPrize && (
+                  <>
+                    {/* Shine */}
+                    <div className="shine absolute w-full h-full flex items-center justify-center">
+                      <div className="w-[80%] h-[80%] rounded-full bg-gradient-to-r from-white to-transparent opacity-30" style={{ animation: 'spin linear 5s infinite forwards' }}></div>
                     </div>
-                    <h3 className="text-[3vh] font-bold text-white">{currentPrize.name}</h3>
-                    <div className={`rarity px-4 py-1 rounded-full text-black font-bold ${
-                      currentPrize.rarity === 'Common' ? 'bg-gray-300' : 
-                      currentPrize.rarity === 'Uncommon' ? 'bg-green-300' : 
-                      currentPrize.rarity === 'Rare' ? 'bg-blue-300' :
-                      currentPrize.rarity === 'Ultra Rare' ? 'bg-purple-300' : 'bg-yellow-300'
-                    }`}>
-                      {currentPrize.rarity}
+                    
+                    {/* Prize */}
+                    <div className="prize flex flex-col items-center justify-center gap-4 z-10 pointer-events-auto">
+                      <div className="w-[100px] h-[100px] bg-[--gba-light] rounded-full flex items-center justify-center wiggle shadow-lg">
+                        <span className="text-[50px] font-bold">🎵</span>
+                      </div>
+                      <h3 className="text-[24px] font-bold text-white mt-2">{currentPrize.name}</h3>
+                      <div className={`rarity px-4 py-1 rounded-full text-black font-bold ${
+                        currentPrize.rarity === 'Common' ? 'bg-gray-300' : 
+                        currentPrize.rarity === 'Uncommon' ? 'bg-green-300' : 
+                        currentPrize.rarity === 'Rare' ? 'bg-blue-300' :
+                        currentPrize.rarity === 'Ultra Rare' ? 'bg-purple-300' : 'bg-yellow-300'
+                      }`}>
+                        {currentPrize.rarity}
+                      </div>
+                      <Button 
+                        className="mt-4 gba-button pointer-events-auto"
+                        onClick={resetGacha}
+                      >
+                        Play Again
+                      </Button>
                     </div>
-                    <Button 
-                      className="mt-4 gba-button pointer-events-auto"
-                      onClick={resetGacha}
-                    >
-                      Play Again
-                    </Button>
-                  </div>
-                </>
-              )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
-        
       </div>
-      
-      {/* Custom styles are now in external CSS */}
     </Card>
   );
 }
