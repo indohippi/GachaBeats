@@ -93,22 +93,52 @@ export default function GachaCapture() {
     
     setIsPlaying(true);
     
-    // Simulate gacha animation timing
+    // Animate one ball dropping down
+    const prizeBallIndex = 4; // Use middle ball
     setTimeout(() => {
-      const prize = getRandomSound();
-      setCurrentPrize(prize);
-      
-      // Show prize after a delay
-      setTimeout(() => {
-        setShowPrize(true);
+      // Get the chosen ball element and animate it
+      const ballElements = document.querySelectorAll('.ball-wrapper');
+      if (ballElements[prizeBallIndex]) {
+        const ball = ballElements[prizeBallIndex] as HTMLElement;
         
-        toast({
-          title: "New Sound Unlocked!",
-          description: `You got ${prize.name} (${prize.rarity})`,
-          duration: 5000,
-        });
-      }, 1500);
-    }, 2000);
+        // First move slightly left/right
+        ball.style.transform = 'translateX(-5px) rotate(-10deg)';
+        ball.style.zIndex = '10';
+        
+        setTimeout(() => {
+          // Then drop down
+          ball.style.top = '80%';
+          ball.style.transition = 'top 0.5s ease-in';
+          
+          setTimeout(() => {
+            // Small bounce
+            ball.style.top = '78%';
+            ball.style.transition = 'top 0.2s ease-out';
+            
+            setTimeout(() => {
+              // Final position
+              ball.style.top = '80%';
+              ball.style.transition = 'top 0.2s ease-in';
+              
+              // Get prize after ball drops
+              const prize = getRandomSound();
+              setCurrentPrize(prize);
+              
+              // Show prize after final animation
+              setTimeout(() => {
+                setShowPrize(true);
+                
+                toast({
+                  title: "New Sound Unlocked!",
+                  description: `You got ${prize.name} (${prize.rarity})`,
+                  duration: 5000,
+                });
+              }, 600);
+            }, 200);
+          }, 500);
+        }, 300);
+      }
+    }, 500);
   };
 
   const resetGacha = () => {
@@ -200,12 +230,14 @@ export default function GachaCapture() {
                 <HandleSVG />
               </div>
               
-              {/* Pointer - fixed position */}
+              {/* Handle animation */}
               <div 
-                className={`pointer-container absolute top-[67%] left-[12%] z-20 pointer-events-none ${!isPlaying ? '' : 'opacity-0'}`}
+                className={`handle-animation absolute top-[67%] left-[12%] z-20 pointer-events-none ${!isPlaying ? '' : 'opacity-0'}`}
               >
-                <div className="pointer-animation" style={{ animation: !isPlaying ? 'click 1s ease-in-out infinite both' : 'none', transformOrigin: '0% 0%' }}>
-                  <PointerSVG />
+                <div className="pointer" style={{ animation: !isPlaying ? 'click 1.5s ease-in-out infinite both' : 'none' }}>
+                  <svg width="30" height="30" viewBox="0 0 30 30">
+                    <path d="M5,5 L25,15 L5,25 Z" fill="#ffde59" stroke="#5e3a8d" strokeWidth="2" />
+                  </svg>
                 </div>
               </div>
             </div>

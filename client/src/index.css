@@ -34,9 +34,9 @@ body {
 }
 
 @keyframes click {
-  0% { transform: rotate(-30deg) translateY(0vh); }
-  80% { transform: rotate(-30deg) translateY(2vh); }
-  100% { transform: rotate(-30deg) translateY(0vh); }
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(60deg); }
+  100% { transform: rotate(0deg); }
 }
 
 @keyframes spin {
