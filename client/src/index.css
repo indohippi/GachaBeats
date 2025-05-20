@@ -1,6 +1,68 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c&display=swap');
+
+:root {
+  --gba-darker: #333;
+  --gba-dark: #444;
+  --gba-primary: #8a60c4;
+  --gba-secondary: #e288bb;
+  --gba-light: #9be7ff;
+  --gba-lightest: #f9f9f9;
+}
+
+body {
+  font-family: 'M PLUS Rounded 1c', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  overflow: hidden;
+}
+
+.gba-pixel-border {
+  box-shadow: 0 4px 0 #333;
+}
+
+.shadow-inner-md {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Gacha animations */
+@keyframes wiggle {
+  0% { transform: rotate(-5deg); }
+  50% { transform: rotate(5deg); }
+  100% { transform: rotate(-5deg); }
+}
+
+@keyframes click {
+  0% { transform: rotate(-30deg) translateY(0vh); }
+  80% { transform: rotate(-30deg) translateY(2vh); }
+  100% { transform: rotate(-30deg) translateY(0vh); }
+}
+
+@keyframes spin {
+  to { transform: rotate(0turn); }
+  from { transform: rotate(1turn); }
+}
+
+@keyframes blink {
+  0% { color: #ffc7e5; }
+  20% { color: #fcff33; }
+  100% { color: #ffc7e5; }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.dim {
+  filter: brightness(0.6) saturate(0.8);
+  transition: 0.5s linear;
+}
+
+.wiggle {
+  animation: wiggle 2s ease-in-out infinite both;
+}
  
 @layer base {
   :root {
