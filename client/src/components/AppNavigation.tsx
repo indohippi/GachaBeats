@@ -26,6 +26,12 @@ export default function AppNavigation() {
       icon: <span className="text-xl">🎮</span>
     },
     {
+      id: 'coins',
+      name: 'Coins',
+      path: '/coins',
+      icon: <span className="text-xl">🪙</span>
+    },
+    {
       id: 'collection',
       name: 'Sounds',
       path: '/collection',

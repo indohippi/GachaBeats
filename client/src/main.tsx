@@ -8,6 +8,7 @@ import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import DAWApp from "./pages/DAWApp";
 import GachaApp from "./pages/GachaApp";
+import CoinsPage from "./pages/CoinsPage";
 import AppNavigation from "./components/AppNavigation";
 
 // App Layout with Navigation
@@ -34,6 +35,9 @@ const App = () => {
               </Route>
               <Route path="/gacha">
                 <GachaApp />
+              </Route>
+              <Route path="/coins">
+                <CoinsPage />
               </Route>
               <Route path="/collection">
                 <div className="h-full flex items-center justify-center text-white">
