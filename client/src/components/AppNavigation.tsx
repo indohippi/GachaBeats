@@ -81,13 +81,15 @@ export default function AppNavigation() {
         
         {/* Right side items / user info */}
         <div className="user-info">
-          <Button
-            size="sm"
-            variant="outline"
-            className="gba-pixel-border bg-[--gba-primary] text-white"
-          >
-            <span className="mr-1">🪙</span> 500
-          </Button>
+          <Link href="/coins">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gba-pixel-border bg-[--gba-primary] text-white hover:bg-[--gba-primary-dark] transition-colors"
+            >
+              <span className="mr-1">🪙</span> 500
+            </Button>
+          </Link>
         </div>
       </div>
       
