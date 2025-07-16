@@ -72,6 +72,20 @@ body {
     --gba-lightest: #E0F8D0;
   }
 
+  .dark {
+    --gba-darkest: #081820;
+    --gba-dark: #346856;
+    --gba-light: #88C070;
+    --gba-lightest: #E0F8D0;
+  }
+
+  .light {
+    --gba-darkest: #E0F8D0;
+    --gba-dark: #88C070;
+    --gba-light: #346856;
+    --gba-lightest: #081820;
+  }
+
   * {
     @apply border-border;
   }
