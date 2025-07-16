@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { useLocation, useRoute, Link } from 'wouter';
+import React from 'react';
+import { useLocation, Link } from 'wouter';
 import { Button } from './ui/button';
+import { Sun, Moon } from 'lucide-react';
+import { useDarkMode } from '@/hooks/useDarkMode';
 
 interface NavigationItem {
   id: string;
@@ -11,6 +13,7 @@ interface NavigationItem {
 
 export default function AppNavigation() {
   const [location] = useLocation();
+  const { isDark, toggle } = useDarkMode();
   
   const navigationItems: NavigationItem[] = [
     {
@@ -79,8 +82,17 @@ export default function AppNavigation() {
           ))}
         </div>
         
-        {/* Right side items / user info */}
-        <div className="user-info">
+        {/* Right side items */}
+        <div className="flex items-center gap-2">
+          <Button
+            size="icon"
+            variant="outline"
+            aria-label="Toggle theme"
+            onClick={toggle}
+            className="gba-pixel-border w-8 h-8 bg-[--gba-dark] text-[--gba-lightest] hover:bg-[--gba-darker]"
+          >
+            {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          </Button>
           <Link href="/coins">
             <Button
               size="sm"
