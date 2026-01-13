@@ -1,0 +1,26 @@
+# Code owners - automatically request reviews from these users
+
+# Default owners for everything in the repo
+* @owner
+
+# Server-side code
+/server/ @backend-team
+/db/ @backend-team
+
+# Client-side code
+/client/ @frontend-team
+
+# DAW components
+/client/src/components/daw/ @audio-team
+
+# Gacha game logic
+/client/src/components/gacha/ @game-team
+/server/routes.ts @game-team
+
+# Infrastructure and CI/CD
+/.github/ @devops-team
+/Dockerfile @devops-team
+/.cursorrules @devops-team
+
+# Documentation
+*.md @docs-team

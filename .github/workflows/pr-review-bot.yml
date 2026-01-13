@@ -1,0 +1,320 @@
+name: PR Review Bot
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  # Auto-label PRs based on changed files
+  auto-label:
+    name: Auto Label PR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Label PR based on files
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const labels = new Set();
+            const filePaths = files.map(f => f.filename);
+
+            // Add labels based on file patterns
+            if (filePaths.some(f => f.startsWith('client/'))) labels.add('frontend');
+            if (filePaths.some(f => f.startsWith('server/'))) labels.add('backend');
+            if (filePaths.some(f => f.startsWith('db/'))) labels.add('database');
+            if (filePaths.some(f => f.includes('test') || f.includes('spec'))) labels.add('tests');
+            if (filePaths.some(f => f.endsWith('.md'))) labels.add('documentation');
+            if (filePaths.some(f => f.includes('.github/workflows'))) labels.add('ci/cd');
+            if (filePaths.some(f => f.includes('daw'))) labels.add('audio');
+            if (filePaths.some(f => f.includes('gacha'))) labels.add('game-logic');
+            if (filePaths.some(f => f.includes('auth') || f.includes('session'))) labels.add('security');
+
+            // Determine size label
+            const additions = files.reduce((sum, f) => sum + f.additions, 0);
+            const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
+            const totalChanges = additions + deletions;
+
+            if (totalChanges < 50) labels.add('size/small');
+            else if (totalChanges < 200) labels.add('size/medium');
+            else if (totalChanges < 500) labels.add('size/large');
+            else labels.add('size/xl');
+
+            // Apply labels
+            if (labels.size > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: Array.from(labels),
+              });
+            }
+
+  # Check for common issues and comment
+  code-quality-check:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+
+      - name: Check for common issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const changedFiles = `${{ steps.changed-files.outputs.all_changed_files }}`.split(' ');
+            const issues = [];
+            const warnings = [];
+            const suggestions = [];
+
+            // Check for TypeScript files without tests
+            const tsFiles = changedFiles.filter(f =>
+              (f.endsWith('.ts') || f.endsWith('.tsx')) &&
+              !f.includes('test') &&
+              !f.includes('.d.ts') &&
+              (f.startsWith('client/src/') || f.startsWith('server/'))
+            );
+
+            const testFiles = changedFiles.filter(f =>
+              f.includes('.test.') || f.includes('.spec.')
+            );
+
+            if (tsFiles.length > 0 && testFiles.length === 0) {
+              warnings.push('⚠️ **No test files detected**: Consider adding tests for your changes');
+            }
+
+            // Check for package.json changes without lock file
+            if (changedFiles.includes('package.json') && !changedFiles.includes('package-lock.json')) {
+              issues.push('🚨 **Missing lock file update**: `package.json` was modified but `package-lock.json` was not updated');
+            }
+
+            // Check for .env changes (should use .env.example)
+            if (changedFiles.some(f => f === '.env')) {
+              issues.push('🚨 **Security risk**: `.env` file should not be committed. Use `.env.example` instead');
+            }
+
+            // Check for large files
+            const largeFileThreshold = 500; // lines
+            for (const file of tsFiles.slice(0, 10)) { // Check first 10 files to avoid rate limits
+              try {
+                const { data: content } = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: file,
+                  ref: context.payload.pull_request.head.sha
+                });
+
+                if (content.encoding === 'base64') {
+                  const lines = Buffer.from(content.content, 'base64').toString().split('\n').length;
+                  if (lines > largeFileThreshold) {
+                    suggestions.push(`📏 **Large file detected**: \`${file}\` has ${lines} lines. Consider refactoring into smaller modules`);
+                  }
+                }
+              } catch (e) {
+                console.log(`Could not check file size for ${file}`);
+              }
+            }
+
+            // Check for migration files without corresponding schema changes
+            const hasMigration = changedFiles.some(f => f.includes('migration') || f.includes('db/'));
+            const hasSchemaUpdate = changedFiles.includes('db/schema.ts');
+            if (hasMigration && !hasSchemaUpdate) {
+              suggestions.push('💡 **Database changes**: You may need to update `db/schema.ts` to match your migrations');
+            }
+
+            // Build comment
+            if (issues.length === 0 && warnings.length === 0 && suggestions.length === 0) {
+              // No issues found - leave a positive comment
+              const body = `## 🤖 Automated Code Review
+
+✅ **No obvious issues detected!**
+
+Your PR looks good from an automated perspective. A human reviewer will take a closer look soon.
+
+### Quick Checklist:
+- [ ] Tests added/updated
+- [ ] Documentation updated (if needed)
+- [ ] No breaking changes (or documented)
+- [ ] Follows coding standards
+
+---
+<sub>🔍 Automated by PR Review Bot</sub>`;
+
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            } else {
+              // Found issues - create detailed comment
+              let body = `## 🤖 Automated Code Review\n\n`;
+
+              if (issues.length > 0) {
+                body += `### 🚨 Issues Found\n\n${issues.join('\n\n')}\n\n`;
+              }
+
+              if (warnings.length > 0) {
+                body += `### ⚠️ Warnings\n\n${warnings.join('\n\n')}\n\n`;
+              }
+
+              if (suggestions.length > 0) {
+                body += `### 💡 Suggestions\n\n${suggestions.join('\n\n')}\n\n`;
+              }
+
+              body += `---\n<sub>🔍 Automated by PR Review Bot | Please address issues before merging</sub>`;
+
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
+
+  # Handle PR commands via comments
+  pr-commands:
+    name: Handle PR Commands
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/')
+    steps:
+      - name: Process Command
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = context.payload.comment.body.trim();
+            const commands = {
+              '/review': 'Request review from maintainers',
+              '/rerun-checks': 'Re-run CI checks',
+              '/help': 'Show available commands',
+            };
+
+            // Extract command
+            const command = comment.split(' ')[0];
+
+            if (command === '/help') {
+              const helpText = `## 🤖 Available PR Commands\n\n` +
+                Object.entries(commands).map(([cmd, desc]) => `- **${cmd}**: ${desc}`).join('\n') +
+                `\n\n---\n<sub>Comment with any command to execute it</sub>`;
+
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: helpText
+              });
+            } else if (command === '/review') {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '🔔 **Review requested** - Maintainers have been notified'
+              });
+
+              // Add review-needed label
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: ['review-needed']
+              });
+            } else if (command === '/rerun-checks') {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '🔄 **Checks will re-run** on the next commit or you can close/reopen the PR'
+              });
+            }
+
+  # Check PR description quality
+  pr-description-check:
+    name: Check PR Description
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    steps:
+      - name: Validate PR Description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+            const title = pr.title;
+
+            const issues = [];
+
+            // Check title
+            if (title.length < 10) {
+              issues.push('📝 **Title too short**: Please provide a more descriptive title (at least 10 characters)');
+            }
+
+            // Check description length
+            if (body.length < 50) {
+              issues.push('📝 **Description too short**: Please provide more details about your changes (at least 50 characters)');
+            }
+
+            // Check for template sections
+            const hasDescription = body.includes('## Description') || body.includes('Description');
+            const hasChanges = body.includes('## Changes') || body.includes('Changes Made');
+            const hasTesting = body.includes('## Testing') || body.includes('Testing');
+
+            if (!hasDescription) {
+              issues.push('📋 **Missing description section**: Please describe what this PR does');
+            }
+
+            if (!hasChanges && !hasDescription) {
+              issues.push('📋 **Missing changes section**: Please list the specific changes made');
+            }
+
+            if (!hasTesting) {
+              issues.push('🧪 **Missing testing section**: Please describe how you tested these changes');
+            }
+
+            // Check for linked issues
+            const hasIssueLink = /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#\d+/i.test(body);
+            if (!hasIssueLink) {
+              issues.push('🔗 **No linked issues**: Consider linking related issues (e.g., "Closes #123")');
+            }
+
+            // Post comment if issues found
+            if (issues.length > 0) {
+              const comment = `## 🤖 PR Description Review\n\n` +
+                `Thanks for your contribution! Here are some suggestions to improve your PR description:\n\n` +
+                issues.join('\n\n') +
+                `\n\n### 💡 Tip\nA good PR description helps reviewers understand your changes faster!\n\n` +
+                `---\n<sub>🔍 Automated by PR Review Bot</sub>`;
+
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }

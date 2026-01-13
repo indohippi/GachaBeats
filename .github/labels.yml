@@ -1,0 +1,132 @@
+# GitHub Labels Configuration
+# Use with: gh label create --file .github/labels.yml
+
+# Type Labels
+- name: bug
+  color: d73a4a
+  description: Something isn't working correctly
+
+- name: feature
+  color: a2eeef
+  description: New feature or request
+
+- name: enhancement
+  color: 84b6eb
+  description: Improvement to existing feature
+
+- name: documentation
+  color: 0075ca
+  description: Documentation improvements
+
+- name: refactor
+  color: fbca04
+  description: Code refactoring
+
+# Component Labels
+- name: frontend
+  color: '0e8a16'
+  description: Client-side React code
+
+- name: backend
+  color: 5319e7
+  description: Server-side Express code
+
+- name: database
+  color: b60205
+  description: Database schema or queries
+
+- name: audio
+  color: c2e0c6
+  description: Audio engine or DAW components
+
+- name: game-logic
+  color: f9d0c4
+  description: Gacha game mechanics
+
+- name: security
+  color: d93f0b
+  description: Security related changes
+
+- name: ci/cd
+  color: '0052cc'
+  description: CI/CD pipeline changes
+
+# Size Labels
+- name: size/xs
+  color: 3CBF00
+  description: Extra small PR (< 10 lines)
+
+- name: size/small
+  color: 5D9801
+  description: Small PR (10-100 lines)
+
+- name: size/medium
+  color: D4C5F9
+  description: Medium PR (100-300 lines)
+
+- name: size/large
+  color: FFA500
+  description: Large PR (300-500 lines)
+
+- name: size/xl
+  color: EE0701
+  description: Extra large PR (> 500 lines)
+
+# Status Labels
+- name: review-needed
+  color: fbca04
+  description: Waiting for code review
+
+- name: changes-requested
+  color: d93f0b
+  description: Changes requested by reviewer
+
+- name: approved
+  color: 0e8a16
+  description: Approved and ready to merge
+
+- name: blocked
+  color: b60205
+  description: Blocked by external dependencies
+
+- name: wip
+  color: ededed
+  description: Work in progress
+
+# Priority Labels
+- name: priority/critical
+  color: d93f0b
+  description: Critical priority
+
+- name: priority/high
+  color: FFA500
+  description: High priority
+
+- name: priority/medium
+  color: fbca04
+  description: Medium priority
+
+- name: priority/low
+  color: 0e8a16
+  description: Low priority
+
+# Special Labels
+- name: good first issue
+  color: 7057ff
+  description: Good for newcomers
+
+- name: help wanted
+  color: 008672
+  description: Extra attention is needed
+
+- name: breaking-change
+  color: d73a4a
+  description: Breaking API changes
+
+- name: dependencies
+  color: 0366d6
+  description: Dependency updates
+
+- name: tests
+  color: c5def5
+  description: Test updates or additions

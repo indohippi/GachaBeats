@@ -1,0 +1,147 @@
+# GachaBeats - Cursor AI Rules
+
+## Project Context
+This is a full-stack gacha game combined with a digital audio workstation (DAW). Built with React, Express, PostgreSQL, Drizzle ORM, and Tone.js for audio.
+
+## Technology Stack
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Tone.js
+- **Backend**: Express, Node.js 20, WebSocket (ws)
+- **Database**: PostgreSQL 16 with Drizzle ORM
+- **State**: TanStack Query (React Query)
+- **Routing**: Wouter
+
+## Code Style Guidelines
+
+### TypeScript
+- NEVER use `any` type - use proper typing or `unknown` with type guards
+- Enable strict mode and fix all type errors
+- Use explicit return types for functions
+- Prefer interfaces over types for object shapes
+- Use discriminated unions for complex state
+
+### React
+- Use functional components with hooks only
+- Use `useCallback` and `useMemo` for expensive computations
+- Implement proper error boundaries
+- Keep components under 300 lines - refactor if larger
+- Use composition over prop drilling
+
+### Naming Conventions
+- Components: PascalCase (e.g., `GachaCapture.tsx`)
+- Files: PascalCase for components, camelCase for utilities
+- Functions: camelCase with descriptive names
+- Constants: UPPER_SNAKE_CASE
+- Database tables: snake_case
+
+### Error Handling
+- Always use try-catch for async operations
+- Log errors with proper context using winston logger
+- Return specific error messages to users
+- Never expose stack traces in production
+
+### Security
+- Validate all user inputs with Zod schemas
+- Use parameterized queries (Drizzle handles this)
+- Set secure session cookies with HttpOnly and Secure flags
+- Implement rate limiting on sensitive endpoints
+- Use bcrypt with 12+ salt rounds for passwords
+
+### Performance
+- Lazy load routes and heavy components
+- Implement code splitting for large features
+- Use React.memo for expensive renders
+- Optimize audio engine resource usage
+- Add database indexes for frequent queries
+
+### Testing
+- Write tests for all new features
+- Aim for 60%+ code coverage
+- Use Vitest for unit/integration tests
+- Mock external dependencies (WebSocket, Audio API)
+- Test error states and edge cases
+
+## File Organization
+```
+client/src/
+  components/    # React components
+    daw/         # Audio workstation components
+    gacha/       # Gacha game components
+    ui/          # shadcn/ui components
+  pages/         # Page-level components
+  hooks/         # Custom React hooks
+  lib/           # Utilities and helpers
+  test/          # Test utilities
+
+server/
+  index.ts       # Server entry point
+  routes.ts      # API routes
+  auth.ts        # Authentication
+  logger.ts      # Winston logger
+
+db/
+  schema.ts      # Database schemas
+  index.ts       # DB connection
+```
+
+## Common Patterns
+
+### API Routes
+```typescript
+router.get('/api/resource', async (req, res) => {
+  try {
+    // Validate input
+    // Query database
+    // Return response
+    res.json({ data });
+  } catch (error) {
+    logError('Operation failed', error);
+    res.status(500).json({ error: 'Message' });
+  }
+});
+```
+
+### React Components
+```typescript
+export default function Component({ prop }: Props) {
+  const [state, setState] = useState();
+
+  useEffect(() => {
+    // Side effects
+    return () => {
+      // Cleanup
+    };
+  }, [deps]);
+
+  return <div>JSX</div>;
+}
+```
+
+### Database Queries
+```typescript
+const result = await db
+  .select()
+  .from(table)
+  .where(eq(table.column, value))
+  .limit(10);
+```
+
+## Important Notes
+- The audio engine uses Tone.js - be careful with timing and context
+- WebSocket messages must be validated before processing
+- Session management uses connect-pg-simple with PostgreSQL
+- Gacha system needs proper rarity weighting implementation
+- DAW collaboration uses WebSocket pub/sub pattern
+
+## Refactoring Priorities
+1. Break down Sequencer.tsx (1000+ lines)
+2. Remove all `any` types
+3. Add comprehensive test coverage
+4. Implement proper logging throughout
+5. Optimize bundle size
+
+## Questions to Ask
+- Should this feature be behind a feature flag?
+- Does this need rate limiting?
+- What's the expected error handling behavior?
+- Is this component testable as-is?
+- Could this cause a performance issue?

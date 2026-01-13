@@ -6,19 +6,39 @@ import bcrypt from 'bcryptjs';
 
 const router = Router();
 
+// Get bcrypt salt rounds from env or use secure default
+const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
+
 router.post('/register', async (req, res) => {
   try {
     const { username, password } = insertUserSchema.parse(req.body);
-    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Validate password strength
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     
     const [user] = await db.insert(users)
       .values({ username, password: hashedPassword })
       .returning();
 
     req.session.userId = user.id;
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
     res.json({ id: user.id, username: user.username });
   } catch (error) {
-    res.status(400).json({ error: 'Invalid input or username taken' });
+    if (error instanceof Error && error.message.includes('duplicate')) {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+    console.error('Registration error:', error);
+    res.status(400).json({ error: 'Registration failed' });
   }
 });
 
@@ -34,9 +54,17 @@ router.post('/login', async (req, res) => {
     }
 
     req.session.userId = user.id;
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
     res.json({ id: user.id, username: user.username });
   } catch (error) {
-    res.status(400).json({ error: 'Invalid input' });
+    console.error('Login error:', error);
+    res.status(400).json({ error: 'Login failed' });
   }
 });
 
