@@ -8,7 +8,9 @@
       "Bash(npm audit:*)",
       "Bash(gh run view:*)",
       "Bash(npm run lint)",
-      "Bash(npm run check:*)"
+      "Bash(npm run check:*)",
+      "Bash(where:*)",
+      "Bash(docker run:*)"
     ],
     "deny": [],
     "ask": []
