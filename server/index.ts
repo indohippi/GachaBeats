@@ -2,6 +2,8 @@ import express, { type Request, type Response, type NextFunction } from "express
 import { createServer } from "http";
 import { Socket } from "net";
 import { WebSocket as WS } from "ws";
+import helmet from "helmet";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 
@@ -42,8 +44,39 @@ function verifyEnvironment() {
 }
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// Security middleware
+app.use(
+  helmet({
+    contentSecurityPolicy:
+      process.env.NODE_ENV === "production"
+        ? undefined
+        : {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", "data:", "https:"],
+              connectSrc: ["'self'", "ws:", "wss:"],
+            },
+          },
+  })
+);
+
+// CORS configuration
+const corsOrigins = process.env.CORS_ORIGIN?.split(",") || ["http://localhost:5173"];
+app.use(
+  cors({
+    origin: corsOrigins,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+// Body parsing middleware with size limits
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
 // Request logging middleware
 app.use((req, res, next) => {
