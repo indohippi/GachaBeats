@@ -96,7 +96,7 @@ jobs:
               (f.endsWith('.ts') || f.endsWith('.tsx')) &&
               !f.includes('test') &&
               !f.includes('.d.ts') &&
-              f.startsWith('client/src/') || f.startsWith('server/')
+              (f.startsWith('client/src/') || f.startsWith('server/'))
             );
 
             const testFiles = changedFiles.filter(f =>

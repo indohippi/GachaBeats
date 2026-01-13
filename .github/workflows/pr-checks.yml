@@ -141,7 +141,7 @@ jobs:
 
             body += '\n---\n<sub>🤖 Automated by PR Checks | [View Logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>';
 
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
